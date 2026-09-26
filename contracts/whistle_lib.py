@@ -311,8 +311,9 @@ def evaluate_sources(sources: dict) -> tuple[str, dict | None]:
 
 
 def build_envelope(fixture_id: str, sources_raw: dict) -> dict:
-    """Pure: given the model's raw structured per-desk extraction
-    (sources_raw), deterministically derive scoreline/verdict_1x2/code.
+    """Pure: given the raw structured per-desk extraction (sources_raw,
+    already parsed -- no LLM involved), deterministically derive
+    scoreline/verdict_1x2/code.
     This is what BOTH leader_fn and validator_fn build from their own
     independently-fetched sources_raw -- code always recomputes verdict
     from scoreline; a model can never make the contract believe a

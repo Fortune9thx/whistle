@@ -91,7 +91,7 @@ export function Marketing() {
               <h3>Two locked desks, never a URL you supply</h3>
               <p className="mute">
                 Every fixture is queried at fixed, registry-locked publisher
-                endpoints. The model never fetches an arbitrary address.
+                endpoints -- no LLM, no caller-supplied address, ever.
               </p>
             </div>
           </div>
@@ -105,10 +105,10 @@ export function Marketing() {
               </div>
             </div>
             <div className="feature-card-body">
-              <h3>Code decides 1X2, never the model</h3>
+              <h3>Code decides 1X2, deterministically</h3>
               <p className="mute">
-                The model extracts raw per-desk facts. A three-line, pure
-                function derives HOME/DRAW/AWAY from the agreed scoreline.
+                Each desk's response is parsed into raw facts. A three-line,
+                pure function derives HOME/DRAW/AWAY from the agreed scoreline.
               </p>
             </div>
           </div>

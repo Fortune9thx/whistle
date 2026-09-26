@@ -33,7 +33,7 @@ gets deployed. Re-run `build_bundle.py` any time `Whistle.py` or
   `is_well_formed_envelope`'s self-consistency check (the tests that
   would catch a lying leader), `compare_envelopes`'s equivalence check,
   fee/bond/payout math, pagination.
-- `tests/direct/test_contract.py` (47 tests) -- real `gltest` direct-mode
+- `tests/direct/test_contract.py` (48 tests) -- real `gltest` direct-mode
   deploys against the actual bundled artifact: every state transition,
   every `UserError` guard, bond escrow/return/slash, decisive vs. refund
   payout, pagination, and one full appeal -> re_adjudicate ->

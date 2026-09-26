@@ -49,10 +49,32 @@ export interface WriteResult {
 }
 
 /**
- * Waits for the transaction to actually be DECIDED (not merely
- * broadcast) and throws unless execution genuinely returned -- a
- * FINALIZED/ACCEPTED status is not itself proof of success; a reverted
- * write can still show up with a real tx hash.
+ * Methods that move real GEN OUT of the contract via
+ * _Recipient(...).emit_transfer() -- claim, reclaim_bonds, and every
+ * bond/fee-paying escape hatch. An EOA-directed value transfer only
+ * actually executes at true FINALIZED, not the earlier "decided"
+ * (ACCEPTED-equivalent) state -- waiting only for "decided" here would
+ * let the UI say "confirmed" before the GEN has actually landed. Every
+ * other write is state-only (or GEN moving IN, which is atomic with the
+ * write itself) and "decided" is sufficient.
+ */
+const VALUE_OUT_FUNCTIONS = new Set([
+  "claim",
+  "reclaim_bonds",
+  "finalize",
+  "cancel_fixture",
+  "expire_fixture",
+  "lapse_appeal",
+  "re_adjudicate",
+  "recover_refund",
+]);
+
+/**
+ * Waits for the transaction to actually reach the bar its own
+ * side-effect requires (see VALUE_OUT_FUNCTIONS) and throws unless
+ * execution genuinely returned -- a FINALIZED/ACCEPTED status is not
+ * itself proof of success; a reverted write can still show up with a
+ * real tx hash.
  */
 export async function submitWrite(
   provider: Eip1193Provider,
@@ -87,8 +109,17 @@ export async function submitWrite(
     fees,
   });
 
+  const needsFinalized = VALUE_OUT_FUNCTIONS.has(functionName);
+  // Match the platform's own tooling default budget for the FINALIZED
+  // case (genlayer CLI's `receipt` command: 100 attempts x 5s) rather
+  // than reusing whatever short budget was tuned for "decided" --
+  // FINALIZED has been observed taking several minutes longer.
   const receipt = await client
-    .waitForTransactionReceipt({ hash, waitUntil: "decided" })
+    .waitForTransactionReceipt(
+      needsFinalized
+        ? { hash, waitUntil: "finalized", interval: 5000, retries: 100 }
+        : { hash, waitUntil: "decided" }
+    )
     .catch(() => null);
 
   const tx = receipt ?? (await client.getTransaction({ hash }).catch(() => null));

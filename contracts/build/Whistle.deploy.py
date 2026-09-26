@@ -311,8 +311,9 @@ def evaluate_sources(sources: dict) -> tuple[str, dict | None]:
 
 
 def build_envelope(fixture_id: str, sources_raw: dict) -> dict:
-    """Pure: given the model's raw structured per-desk extraction
-    (sources_raw), deterministically derive scoreline/verdict_1x2/code.
+    """Pure: given the raw structured per-desk extraction (sources_raw,
+    already parsed -- no LLM involved), deterministically derive
+    scoreline/verdict_1x2/code.
     This is what BOTH leader_fn and validator_fn build from their own
     independently-fetched sources_raw -- code always recomputes verdict
     from scoreline; a model can never make the contract believe a
@@ -703,9 +704,18 @@ class Whistle(gl.contract.Contract):
                     leader_env = json.loads(str(leader_result.calldata))
                 except (AttributeError, ValueError, TypeError):
                     return False
-                my_raw = leader_fn()
+                # Re-derive independently via spawn_sandbox, not a bare
+                # second call -- gl.eq_principle.strict_eq's own
+                # validator_fn does exactly this (vm.spawn_sandbox(fn)),
+                # and a bare in-process re-call from inside a validator
+                # has previously triggered a live GenVM
+                # DETERMINISTIC_VIOLATION even when results matched. See
+                # docs/architecture.md.
+                my_result = gl.vm.spawn_sandbox(leader_fn)
+                if not isinstance(my_result, gl.vm.Return):
+                    return False
                 try:
-                    my_env = json.loads(my_raw)
+                    my_env = json.loads(str(my_result.calldata))
                 except (ValueError, TypeError):
                     return False
                 return compare_envelopes(my_env, leader_env, fixture_id_local)
@@ -841,8 +851,11 @@ class Whistle(gl.contract.Contract):
 
         verdict = self.fixture_verdict[fixture_id]
         total_pool = int(self.fixture_total_pool[fixture_id])
+        winning_pool_total = (
+            int(self.pool_by_outcome.get(f"{fixture_id}:{verdict}", u256(0))) if verdict in OUTCOMES else 0
+        )
 
-        if verdict in OUTCOMES:
+        if verdict in OUTCOMES and winning_pool_total > 0:
             fee_total, resolver_share, treasury_share = decisive_fee(total_pool)
             resolver = self.fixture_resolver.get(fixture_id, "")
             if resolver_share > 0 and resolver:
@@ -851,6 +864,14 @@ class Whistle(gl.contract.Contract):
                 _Recipient(self.treasury).emit_transfer(value=u256(treasury_share))
             self.fixture_state[fixture_id] = "FINALIZED"
         else:
+            # Either a genuinely inconclusive resolve, or a decisive
+            # verdict nobody staked (e.g. a DRAW with zero DRAW bettors)
+            # -- no legitimate payee for the pool either way, so refund
+            # everyone's own stake in full, zero fee. Never mark this
+            # FINALIZED with an unclaimable pot.
+            if verdict in OUTCOMES:
+                self.fixture_code[fixture_id] = "NO_STAKERS_ON_WINNER"
+                self.fixture_verdict[fixture_id] = "INCONCLUSIVE"
             self.fixture_state[fixture_id] = "INCONCLUSIVE"
 
         self.fixture_last_state_change[fixture_id] = u256(now_ts)
@@ -858,7 +879,7 @@ class Whistle(gl.contract.Contract):
         cur = int(self.creator_open_count.get(creator, u256(0)))
         if cur > 0:
             self.creator_open_count[creator] = u256(cur - 1)
-        EventFinalized(fixture_id, verdict or "INCONCLUSIVE").emit()
+        EventFinalized(fixture_id, self.fixture_verdict[fixture_id] or "INCONCLUSIVE").emit()
 
     # ------------------------------------------------------------------
     # cancel_fixture / expire_fixture

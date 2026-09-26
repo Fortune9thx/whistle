@@ -2,7 +2,7 @@
 
 | Surface | State |
 |---|---|
-| Contract tests | 93/93 passing (45 pure-Python `whistle_lib` + 48 `gltest` direct-mode) |
+| Contract tests | 94/94 passing (45 pure-Python `whistle_lib` + 49 `gltest` direct-mode) |
 | `genvm-lint check` | passing, 3 checks |
 | `genvm-lint typecheck` | 0 errors, 0 warnings |
 | Bundle size | 48,492 / 52,224 bytes (92.9%) |

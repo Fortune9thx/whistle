@@ -3,7 +3,7 @@ import { useState } from "react";
 const ITEMS: [string, string][] = [
   [
     "What does GenLayer actually decide?",
-    "Whether two locked publisher desks report the same completed (FT) scoreline for the same fixture. Code maps that scoreline to 1X2 -- the model never picks a side.",
+    "Whether two locked publisher desks report the same completed (FT) scoreline for the same fixture. No LLM is involved -- code alone maps that scoreline to 1X2.",
   ],
   [
     "What happens if the desks disagree?",

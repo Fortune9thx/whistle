@@ -26,9 +26,13 @@ enough that a decisive pot isn't held up for long. It's a named constant
 
 ## The comparator (`whistle_lib.py`, zero `genlayer` import)
 
-The model is asked for exactly one thing per desk: `{status, home, away,
-asof}`, extracted from that desk's own raw response. It is **never**
-asked for, and the contract **never reads**, a model-supplied 1X2 claim.
+No LLM is involved anywhere in this contract. Each desk's response is
+fetched via a plain `gl.nondet.web.get(url)` and parsed into exactly one
+thing per desk -- `{status, home, away, asof}` -- by deterministic
+Python. The non-determinism GenVM's consensus is checking is purely "did
+two validators' own independent live HTTP fetches produce the same
+parsed facts", not any model sampling. The contract **never reads** a
+1X2 claim from anywhere but its own `derive_1x2` function.
 
 1. `parse_response_body(desk_id, raw_text)` -- bounds response size,
    decodes JSON, extracts the four fields in that desk's own shape.
@@ -59,8 +63,23 @@ asked for, and the contract **never reads**, a model-supplied 1X2 claim.
 `gltest` direct-mode's `run_nondet` mock only ever invokes `leader_fn`,
 never `validator_fn` -- so the equivalence check itself (item 6, and the
 self-consistency check in item 5) is proven with hand-constructed
-mismatched fixtures in `tests/direct/test_whistle_lib.py`, not via a
-mocked two-LLM `gltest` run.
+mismatched fixtures in `tests/direct/test_whistle_lib.py`, not via a live
+two-validator `gltest` run.
+
+`validator_fn` re-derives its own answer via `gl.vm.spawn_sandbox(leader_fn)`,
+not a bare second call to `leader_fn()` -- `gl.eq_principle.strict_eq`'s
+own validator does exactly this internally (confirmed by reading
+`genlayer/eq_principle/__init__.py`), and a bare in-process re-call from
+inside a validator has previously been observed live triggering a
+GenVM-level `DETERMINISTIC_VIOLATION` vote even when the two results
+genuinely matched. `strict_eq` itself wasn't used directly because its
+bit-exact comparison would reject on `sources`' own volatile `asof`
+field, which this design deliberately tolerates differing between two
+independent fetches -- `compare_envelopes` needs to compare only the
+derived `(code, verdict_1x2, scoreline)` facts, so the hand-rolled
+`run_nondet` + `spawn_sandbox` combination is used instead, keeping
+`strict_eq`'s safer re-invocation mechanism without its stricter
+equality rule.
 
 ## Two deliberate, toolchain-forced deviations from the original brief
 

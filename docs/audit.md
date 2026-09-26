@@ -48,6 +48,33 @@ appealing frivolously, racing to claim, etc.).
    checksum-normalization lesson from prior GenLayer builds on this
    account (a caller-supplied differently-cased address silently missing
    its own position is a real, previously-confirmed rejection pattern).
+8. **A decisive verdict with zero stakers on the winning outcome cannot
+   strand the pot.** `finalize()` checks the winning outcome's own pool
+   total, not just whether the verdict is a valid outcome; if nobody
+   staked the side that actually won (a DRAW nobody bet on being the
+   most likely real case), it settles INCONCLUSIVE -- full stake back to
+   every bettor, zero fee -- instead of FINALIZED with an unclaimable
+   distributable pot. Proven by
+   `test_decisive_verdict_zero_stakers_on_winner_refunds_instead`.
+9. **`resolve()`'s validator re-derivation runs through
+   `gl.vm.spawn_sandbox`, not a bare second call.** A hand-rolled
+   `run_nondet(leader_fn, validator_fn)` whose `validator_fn` calls
+   `leader_fn()` again as a plain in-process Python call is
+   architecturally identical to a pattern this account has previously
+   observed live triggering GenVM's own `DETERMINISTIC_VIOLATION`
+   protocol-level rejection, even when the two results genuinely
+   matched. `validator_fn` here instead re-derives via
+   `gl.vm.spawn_sandbox(leader_fn)` -- the same re-invocation mechanism
+   `gl.eq_principle.strict_eq`'s own validator uses internally (confirmed
+   by reading the installed SDK's `genlayer/eq_principle/__init__.py`
+   directly), kept alongside the hand-rolled comparator (rather than
+   switching outright to `strict_eq`) specifically because `strict_eq`'s
+   bit-exact equality would reject on `sources`' own legitimately-varying
+   `asof` field. **Not independently confirmed live** -- `resolve()` has
+   not yet been called against a real fixture on the live deployment (see
+   `docs/STATUS.md`); this closes the specific, previously-observed
+   failure mode by construction but the fix itself is unverified against
+   real GenVM consensus until a first live `resolve()` call succeeds.
 
 ## Known, accepted gap
 
@@ -84,8 +111,23 @@ requires `now < kickoff`).
   market (`HOME`/`DRAW`/`AWAY`), not a single-candidate accept/reject
   gate.
 
-## Not yet independently re-audited
+## Second adversarial audit pass
 
-This build has not yet had a second, adversarial audit pass distinct
-from the author's own review above. Treat this section as the author's
-self-assessment, not an external confirmation.
+A second, strict pass against this account's own consolidated
+184-item pre-submission checklist (compiled from real prior steward
+rejections and confirmed platform bugs across many earlier GenLayer
+projects) found and fixed two real, code-level issues beyond the first
+pass above: the zero-stakers-on-winner fund-stranding gap (item 8) and
+the hand-rolled-validator consensus-rejection risk (item 9), both listed
+above. It also found and fixed: a frontend gap where `claim()`/
+`reclaim_bonds()`/`finalize()`/every other bond-paying write only waited
+for GenVM's earlier "decided" state before declaring success, when an
+EOA-directed value transfer only truly executes at FINALIZED
+(`frontend/src/lib/whistle/sdk.ts`); an integration test that would have
+failed on its first real run from passing `get_contract_factory` as a
+pytest fixture instead of calling it directly; and documentation across
+README/docs/the frontend that described an LLM extracting per-desk
+facts, when the actual mechanism is a pure `gl.nondet.web.get` fetch plus
+deterministic Python parsing with no LLM call anywhere in the contract.
+Everything in this section has been fixed in the current source; see
+`docs/STATUS.md` for whether a corresponding redeploy has landed.

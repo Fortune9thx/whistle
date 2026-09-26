@@ -350,6 +350,38 @@ class TestFinalize:
         contract.finalize(fixture_id)
         assert contract.get_fixture(fixture_id)["state"] == "INCONCLUSIVE"
 
+    def test_decisive_verdict_zero_stakers_on_winner_refunds_instead(
+        self, direct_vm, direct_deploy, direct_alice, direct_bob, direct_owner, direct_charlie
+    ):
+        """Bob bets HOME, owner bets AWAY -- nobody bets DRAW. The real
+        match ends 1-1 (a genuine DRAW). Without this fix, finalize()
+        would mark this FINALIZED and strand the whole pot: neither
+        bettor's outcome matches the winner, so nobody could ever
+        claim() it. It must settle INCONCLUSIVE (full refund) instead."""
+        contract, fixture_id, kickoff = _open_fixture(direct_vm, direct_deploy, direct_alice)
+        direct_vm.sender = direct_bob
+        direct_vm.value = 3 * lib.MIN_BET
+        contract.place_bet(fixture_id, "HOME")
+        direct_vm.sender = direct_owner
+        direct_vm.value = 5 * lib.MIN_BET
+        contract.place_bet(fixture_id, "AWAY")
+
+        verdict = _resolve_decisive(direct_vm, contract, fixture_id, kickoff, direct_charlie, home=1, away=1)
+        assert verdict == "DRAW"
+        direct_vm.warp(_iso(kickoff + lib.RESOLVE_EARLIEST_OFFSET + 10 + 1800 + 1))
+        contract.finalize(fixture_id)
+
+        fixture = contract.get_fixture(fixture_id)
+        assert fixture["state"] == "INCONCLUSIVE"
+        assert fixture["code"] == "NO_STAKERS_ON_WINNER"
+
+        direct_vm.sender = direct_bob
+        direct_vm.value = 0
+        assert contract.claim(fixture_id) == 3 * lib.MIN_BET
+        direct_vm.sender = direct_owner
+        direct_vm.value = 0
+        assert contract.claim(fixture_id) == 5 * lib.MIN_BET
+
 
 # ---------------------------------------------------------------------------
 # appeal / re_adjudicate / lapse_appeal

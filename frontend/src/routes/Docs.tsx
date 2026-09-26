@@ -18,9 +18,11 @@ export function Docs() {
 
       <Section title="What settles">
         Two locked publisher desks must independently report the same
-        completed (FT) integer scoreline for the same fixture_id. Code
-        maps that scoreline to 1X2 -- the model is never asked for, and
-        the contract never trusts, a bare HOME/DRAW/AWAY claim.
+        completed (FT) integer scoreline for the same fixture_id. No LLM
+        is involved anywhere -- each validator independently fetches both
+        desk URLs itself, and code alone maps the agreed scoreline to
+        1X2. The contract never trusts a bare HOME/DRAW/AWAY claim from
+        any source but its own derivation.
       </Section>
 
       <Section title="Failure policy">

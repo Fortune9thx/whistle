@@ -8,7 +8,7 @@ WHISTLE settles one object on-chain: the full-time 90-minute scoreline of a lock
 
 ## What GenLayer decides
 
-Given a locked fixture (same `fixture_id`, both desks published a completed **FT** result -- not `LIVE`, not a preview), GenLayer's consensus owns exactly one contested judgment call: **do the two locked desks agree on the same integer scoreline for the same completed match?** Code, never the model, maps that scoreline to a 1X2 verdict and settles the pool. The model is never asked for, and the contract never trusts, a bare `HOME`/`DRAW`/`AWAY` claim -- see docs/architecture.md for how `verdict_1x2` is always recomputed from `scoreline`, never read as a model claim.
+Given a locked fixture (same `fixture_id`, both desks published a completed **FT** result -- not `LIVE`, not a preview), GenLayer's consensus owns exactly one contested judgment call: **do the two locked desks agree on the same integer scoreline for the same completed match?** Each validator independently fetches both locked desk URLs itself (no LLM is involved anywhere in this contract -- the non-determinism is purely "did two validators' own live HTTP fetches agree", via `gl.vm.run_nondet`/`gl.vm.spawn_sandbox`); code alone then maps the agreed scoreline to a 1X2 verdict. No party ever claims a bare `HOME`/`DRAW`/`AWAY` value that the contract trusts directly -- see docs/architecture.md for how `verdict_1x2` is always recomputed from `scoreline`, never read as anyone's claim.
 
 ## Adversary
 
@@ -37,7 +37,7 @@ Full API in [docs/architecture.md](docs/architecture.md). Writes: `create_fixtur
 
 ## Tests
 
-93 tests: 45 pure-Python (`whistle_lib`, no `genlayer` import -- the comparator, fee/payout math, envelope self-consistency) + 48 `gltest` direct-mode (real GenVM sandbox deploy + full state-machine execution). `genvm-lint check`/`typecheck` both pass on the bundled artifact. See [docs/testing.md](docs/testing.md).
+94 tests: 45 pure-Python (`whistle_lib`, no `genlayer` import -- the comparator, fee/payout math, envelope self-consistency) + 49 `gltest` direct-mode (real GenVM sandbox deploy + full state-machine execution). `genvm-lint check`/`typecheck` both pass on the bundled artifact. See [docs/testing.md](docs/testing.md).
 
 ## Network
 
