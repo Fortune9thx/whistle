@@ -5,10 +5,10 @@
 | Contract tests | 94/94 passing (45 pure-Python `whistle_lib` + 49 `gltest` direct-mode) |
 | `genvm-lint check` | passing, 3 checks |
 | `genvm-lint typecheck` | 0 errors, 0 warnings |
-| Bundle size | 48,492 / 52,224 bytes (92.9%) |
+| Bundle size | 49,813 / 52,224 bytes (95.4%) |
 | GitHub | live -- [github.com/Fortune9thx/whistle](https://github.com/Fortune9thx/whistle) |
 | Vercel | live -- [whistle-brown-ten.vercel.app](https://whistle-brown-ten.vercel.app) |
-| Studio Next deploy | **live** -- `0x5A8d163887d18309751fe00b7459dAba1175D4A3` |
+| Studio Next deploy | **live** -- `0xB7c5Ec5dc5d7A006Ef5dDE28E316E6A0586D4D36` |
 
 ## Studio Next / Studio Dev, chain 61997
 
@@ -54,8 +54,21 @@ mainnet.
    explorer link, `/app` board reads `total_fixtures: 0` (honest, no
    fixtures created yet -- no mock data), `/app/docs` reads live economics
    from the contract.
+6. **Redeploy (2026-09-27)** after a second, strict adversarial audit
+   pass found and fixed two real contract-level issues (see
+   `docs/audit.md` items 8-9: a zero-stakers-on-winning-outcome
+   fund-stranding gap in `finalize()`, and `resolve()`'s validator
+   switched from a bare second call to `gl.vm.spawn_sandbox`). The
+   original address above could not be patched in place -- redeployed
+   fresh via the same probe-first protocol (free schema check, then a
+   real deploy), confirmed live the same way (`execution_result:
+   SUCCESS`, `get_config()` reads correctly), tx
+   `0xd29a871789527d6a716055cbe591b55cad07b78b17e8f7d5c50da5a79e5f2245`.
+   Every reference to the contract address across README/STATUS/Vercel
+   has been updated to the new one below -- see
+   `deploy/deployments.json` for the full, superseded-vs-current record.
 
-**Live contract**: `0x5A8d163887d18309751fe00b7459dAba1175D4A3`
+**Live contract**: `0xB7c5Ec5dc5d7A006Ef5dDE28E316E6A0586D4D36`
 (deployer/treasury: `0xC6E6d3b2acCaECeCeB40Ad4bD3dF123DDCB4e537`, the
 `bradbury-deploy` account already active on this machine). See
 `deploy/deployments.json` for the full record including the exact

@@ -16,7 +16,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   portfolio, activity, docs.
 - CI workflow running the full test suite + lint + frontend build on
   every push.
-- Deployed live to Studio Next: `0x5A8d163887d18309751fe00b7459dAba1175D4A3`.
+- Deployed live to Studio Next: `0xB7c5Ec5dc5d7A006Ef5dDE28E316E6A0586D4D36`
+  (see `deploy/deployments.json` for the superseded pre-audit-fix address).
 - `SECURITY.md`.
 
 ### Fixed

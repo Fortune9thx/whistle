@@ -7,7 +7,16 @@
       "treasury": "0xC6E6d3b2acCaECeCeB40Ad4bD3dF123DDCB4e537",
       "deployedAt": "2026-09-26T22:12:27.000Z",
       "bundleSha256": "add64c49e4fb15641adeefadc467cd0db45cef9bbca9ed228edf0a76662e25ab",
-      "status": "FINISHED_WITH_RETURN, consensus ACCEPTED, confirmed live via get_config()"
+      "status": "SUPERSEDED -- see the next entry. Predates the zero-stakers-on-winner and validator-sandbox fixes from the second audit pass."
+    },
+    {
+      "address": "0xB7c5Ec5dc5d7A006Ef5dDE28E316E6A0586D4D36",
+      "txHash": "0xd29a871789527d6a716055cbe591b55cad07b78b17e8f7d5c50da5a79e5f2245",
+      "chainId": 61997,
+      "treasury": "0xC6E6d3b2acCaECeCeB40Ad4bD3dF123DDCB4e537",
+      "deployedAt": "2026-09-27T00:00:00.000Z",
+      "bundleSha256": "8a1cba223228407712291de2affcba6ffe1b5fc318d4b07d124162a2356eb97f",
+      "status": "CURRENT -- FINISHED_WITH_RETURN, consensus ACCEPTED, confirmed live via get_config()"
     }
   ]
 }

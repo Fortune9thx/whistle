@@ -3,7 +3,7 @@
 WHISTLE settles one object on-chain: the full-time 90-minute scoreline of a locked football fixture, agreed by two independent, locked publisher desks.
 
 - **Live:** [whistle-brown-ten.vercel.app](https://whistle-brown-ten.vercel.app) -- marketing + app, wired to the live contract below.
-- **Address:** [`0x5A8d163887d18309751fe00b7459dAba1175D4A3`](https://explorer-studio-dev.genlayer.com/address/0x5A8d163887d18309751fe00b7459dAba1175D4A3) on Studio Next (chain 61997). See [docs/STATUS.md](docs/STATUS.md) for the full deploy log.
+- **Address:** [`0xB7c5Ec5dc5d7A006Ef5dDE28E316E6A0586D4D36`](https://explorer-studio-dev.genlayer.com/address/0xB7c5Ec5dc5d7A006Ef5dDE28E316E6A0586D4D36) on Studio Next (chain 61997). See [docs/STATUS.md](docs/STATUS.md) for the full deploy log.
 - **GitHub:** https://github.com/Fortune9thx/whistle
 
 ## What GenLayer decides
