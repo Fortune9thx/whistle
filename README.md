@@ -2,7 +2,7 @@
 
 WHISTLE settles one object on-chain: the full-time 90-minute scoreline of a locked football fixture, agreed by two independent, locked publisher desks.
 
-- **Live:** not yet deployed. See [docs/STATUS.md](docs/STATUS.md) for the current, honest deployment state.
+- **Live:** [whistle-brown-ten.vercel.app](https://whistle-brown-ten.vercel.app) -- marketing + app, honest "not deployed" banner (no contract live yet).
 - **Address:** none yet -- see docs/STATUS.md.
 - **GitHub:** https://github.com/Fortune9thx/whistle
 

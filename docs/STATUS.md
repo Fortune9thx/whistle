@@ -6,8 +6,8 @@
 | `genvm-lint check` | passing, 3 checks |
 | `genvm-lint typecheck` | 0 errors, 0 warnings |
 | Bundle size | 48,492 / 52,224 bytes (92.9%) |
-| GitHub | pending |
-| Vercel | pending |
+| GitHub | live -- [github.com/Fortune9thx/whistle](https://github.com/Fortune9thx/whistle) |
+| Vercel | live -- [whistle-brown-ten.vercel.app](https://whistle-brown-ten.vercel.app) |
 | Studio Next deploy | not attempted yet |
 
 ## Studio Next / Studio Dev, chain 61997
