@@ -16,6 +16,7 @@ export function Nav() {
           <nav className="nav-links">
             <a href="#how">How it settles</a>
             <a href="#faq">FAQ</a>
+            <Link to="/app/docs">Docs</Link>
           </nav>
         )}
         <div className="nav-right">

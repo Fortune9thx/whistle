@@ -7,10 +7,10 @@
   border-bottom: 1px solid var(--line);
 }
 .nav-inner {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  height: 64px;
+  height: 68px;
 }
 .wordmark {
   font-weight: 700;
@@ -29,9 +29,10 @@
 }
 .nav-links {
   display: flex;
-  gap: 28px;
-  font-size: 14px;
+  gap: 30px;
+  font-size: 13.5px;
   color: var(--mute);
+  justify-self: center;
 }
 .nav-links a:hover {
   color: var(--text);
@@ -39,7 +40,25 @@
 .nav-right {
   display: flex;
   align-items: center;
-  gap: 14px;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 720px) {
+  .nav-links {
+    display: none;
+  }
+  .nav-inner {
+    grid-template-columns: auto 1fr;
+  }
+  .nav-right {
+    gap: 8px;
+  }
+}
+@media (max-width: 480px) {
+  .nav-right .btn-ghost {
+    display: none;
+  }
 }
 
 /* ---- buttons / pills ---- */
@@ -296,14 +315,68 @@
 /* ---- form fields ---- */
 .field-input input {
   width: 100%;
-  padding: 10px 14px;
+  padding: 11px 14px;
   border-radius: 10px;
   border: 1px solid var(--line);
-  background: var(--card);
+  background: #0c1326;
   color: var(--text);
   font-size: 14px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.field-input input::placeholder {
+  color: rgba(139, 147, 167, 0.55);
 }
 .field-input input:focus {
   outline: none;
-  border-color: var(--bloom);
+  border-color: rgba(59, 108, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(59, 108, 255, 0.14);
+}
+
+/* ---- create fixture layout ---- */
+.create-layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .create-layout {
+    grid-template-columns: 1fr;
+  }
+}
+.create-form-card {
+  padding: 28px;
+}
+.create-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.create-preview-col {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  position: sticky;
+  top: 24px;
+}
+.create-preview-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.create-preview-col .ticket {
+  max-width: none;
+}
+.create-econ-card {
+  padding: 16px 18px;
+}
+.create-econ-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 7px 0;
+}
+.create-econ-row:not(:last-child) {
+  border-bottom: 1px solid var(--line);
 }
