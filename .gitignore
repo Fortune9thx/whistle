@@ -1,0 +1,27 @@
+# secrets
+.env
+*.key
+*keystore*
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# node
+node_modules/
+.next/
+dist/
+out/
+
+# gltest artifacts
+artifacts/
+.cache/
+
+# vercel
+.vercel/
+
+# os
+.DS_Store
+Thumbs.db

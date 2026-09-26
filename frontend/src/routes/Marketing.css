@@ -1,0 +1,79 @@
+.hero {
+  position: relative;
+  padding: 100px 0 60px;
+  overflow: hidden;
+  text-align: center;
+}
+.hero-bloom {
+  position: absolute;
+  top: -200px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 900px;
+  height: 600px;
+  background: radial-gradient(closest-side, rgba(59, 108, 255, 0.35), transparent 70%);
+  filter: blur(40px);
+  pointer-events: none;
+  z-index: 0;
+}
+.hero-bloom-small {
+  width: 600px;
+  height: 400px;
+  top: -160px;
+}
+.hero-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.hero-title {
+  font-size: clamp(34px, 6vw, 56px);
+  font-weight: 700;
+  line-height: 1.15;
+  margin: 0 0 18px;
+  max-width: 720px;
+}
+.hero-sub {
+  color: var(--mute);
+  font-size: 17px;
+  max-width: 480px;
+  margin: 0 0 28px;
+}
+.hero-stage {
+  margin: 56px 0 40px;
+  display: flex;
+  justify-content: center;
+}
+.hero-facts {
+  margin-top: 8px;
+}
+
+.feature-band {
+  padding: 80px 0;
+}
+.section-title {
+  text-align: center;
+  font-size: 28px;
+  margin-bottom: 40px;
+}
+.feature-card h3 {
+  font-size: 16px;
+  margin: 0 0 8px;
+}
+.feature-card p {
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.final-cta {
+  position: relative;
+  text-align: center;
+  padding: 90px 0;
+}
+
+.faq-band {
+  padding: 60px 0 100px;
+}
