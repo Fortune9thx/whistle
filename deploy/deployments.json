@@ -1,3 +1,13 @@
 {
-  "deployments": []
+  "deployments": [
+    {
+      "address": "0x5A8d163887d18309751fe00b7459dAba1175D4A3",
+      "txHash": "0xe4fffeb8a952c52fb9e1f45adfbe1a8ca01e1101218b4adcc1e6c56ac4eba3a0",
+      "chainId": 61997,
+      "treasury": "0xC6E6d3b2acCaECeCeB40Ad4bD3dF123DDCB4e537",
+      "deployedAt": "2026-09-26T22:12:27.000Z",
+      "bundleSha256": "add64c49e4fb15641adeefadc467cd0db45cef9bbca9ed228edf0a76662e25ab",
+      "status": "FINISHED_WITH_RETURN, consensus ACCEPTED, confirmed live via get_config()"
+    }
+  ]
 }

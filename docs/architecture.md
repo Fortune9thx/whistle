@@ -89,6 +89,22 @@ mocked two-LLM `gltest` run.
    error-comparison, which this contract's `leader_fn` never needs since
    it never raises -- is used instead.
 
+## `genlayer deploy --args` gotcha (confirmed live, 2026-09-26)
+
+The installed `genlayer` CLI's `--args` parser (`parseArg`/`parseScalar` in
+the installed package) only uses its own `JSON.parse` result for
+object/array values -- for a plain scalar it always falls through to
+`parseScalar` on the **original, unparsed** argument text. JSON-quoting a
+single string arg (`--args '"0xADDR"'`) therefore does **not** strip the
+quote characters -- they get sent as literal characters embedded in the
+string, which broke `Address(treasury)` in the constructor
+(`FINISHED_WITH_ERROR`, confirmed by decoding the actual submitted
+calldata off the explorer API). A **bare, unquoted** address argument
+(`--args 0xADDR`) works instead: the parser auto-detects it as its
+"address" calldata type, and GenVM correctly binds that to a Python
+`treasury: str` parameter. See `docs/STATUS.md`'s deploy log for the full
+before/after.
+
 ## Toolchain version table
 
 | Tool | Version | Notes |
