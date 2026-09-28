@@ -12,7 +12,7 @@ export function FixtureTicket({ fixture, demo }: { fixture?: Fixture; demo?: boo
     <div className="ticket card">
       <div className="ticket-top">
         <span className="mute" style={{ fontSize: 12.5 }}>
-          {data.competition ?? "UCL_LP"} &middot; FT 90
+          {data.competition ?? "BL1"} &middot; FT 90
         </span>
         <span className={`pill ${data.state === "OPEN" ? "" : data.state === "FINALIZED" ? "pill-up" : "pill-warn"}`}>
           {data.state ?? "OPEN"}
@@ -47,7 +47,7 @@ export function FixtureTicket({ fixture, demo }: { fixture?: Fixture; demo?: boo
 }
 
 const DEMO_FIXTURE: Partial<Fixture> = {
-  competition: "UCL_LP",
+  competition: "BL1",
   home: "Home FC",
   away: "Away FC",
   state: "OPEN",

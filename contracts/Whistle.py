@@ -29,6 +29,7 @@ from genlayer.storage import DynArray, TreeMap
 from genlayer.types import Address, u256
 
 from whistle_lib import (
+    COMPETITION,
     CREATE_BOND,
     DESK_IDS,
     LAPSE_APPEAL_STALL,
@@ -115,6 +116,8 @@ class Whistle(gl.contract.Contract):
     fixture_home: TreeMap[str, str]
     fixture_away: TreeMap[str, str]
     fixture_kickoff: TreeMap[str, u256]
+    fixture_desk_a_ref: TreeMap[str, str]
+    fixture_desk_b_ref: TreeMap[str, str]
     fixture_creator: TreeMap[str, str]
     fixture_state: TreeMap[str, str]
     fixture_verdict: TreeMap[str, str]
@@ -167,10 +170,16 @@ class Whistle(gl.contract.Contract):
         state = self.fixture_state[fixture_id]
         return {
             "fixture_id": fixture_id,
-            "competition": "UCL_LP",
+            "competition": COMPETITION,
             "home": self.fixture_home[fixture_id],
             "away": self.fixture_away[fixture_id],
             "kickoff_unix": kickoff,
+            # The publisher rows this fixture is bound to, so any reader
+            # can re-fetch both desks and audit the verdict by hand.
+            "desk_refs": {
+                "desk_a": self.fixture_desk_a_ref.get(fixture_id, ""),
+                "desk_b": self.fixture_desk_b_ref.get(fixture_id, ""),
+            },
             "creator": self.fixture_creator[fixture_id],
             "state": state,
             "locked": state == "OPEN" and now >= kickoff,
@@ -190,18 +199,38 @@ class Whistle(gl.contract.Contract):
     # create_fixture
     # ------------------------------------------------------------------
     @gl.public.write.payable
-    def create_fixture(self, fixture_id: str, home: str, away: str, kickoff_unix: u256) -> str:
+    def create_fixture(
+        self,
+        fixture_id: str,
+        home: str,
+        away: str,
+        kickoff_unix: u256,
+        desk_a_ref: str,
+        desk_b_ref: str,
+    ) -> str:
         """Creates a new fixture. Attached GEN must equal CREATE_BOND
-        exactly -- no stake is required from the creator. `fixture_id`
-        must be unique and is the same identifier both locked publisher
-        desks resolve the match by."""
+        exactly -- no stake is required from the creator.
+
+        `fixture_id` is this contract's own unique key. The two desks do
+        NOT share an identifier space, so the publisher-side row on each
+        is named separately: `desk_a_ref` is TheSportsDB's idEvent and
+        `desk_b_ref` is OpenLigaDB's matchID for the same match. Both are
+        frozen here and are the only caller-supplied part of either
+        locked URL -- each must be a bare digit string."""
         if fixture_id in self.fixture_state:
             raise gl.vm.UserError("duplicate_fixture")
 
         creator = self._sender()
         now_ts = self._now_unix()
         open_count = int(self.creator_open_count.get(creator, u256(0)))
-        payload = {"fixture_id": fixture_id, "home": home, "away": away, "kickoff_unix": int(kickoff_unix)}
+        payload = {
+            "fixture_id": fixture_id,
+            "home": home,
+            "away": away,
+            "kickoff_unix": int(kickoff_unix),
+            "desk_a_ref": desk_a_ref,
+            "desk_b_ref": desk_b_ref,
+        }
         try:
             validate_constitution(payload, now_ts=now_ts, open_count_for_creator=open_count)
         except WhistleValidationError as exc:
@@ -213,6 +242,8 @@ class Whistle(gl.contract.Contract):
         self.fixture_home[fixture_id] = home
         self.fixture_away[fixture_id] = away
         self.fixture_kickoff[fixture_id] = kickoff_unix
+        self.fixture_desk_a_ref[fixture_id] = desk_a_ref.strip()
+        self.fixture_desk_b_ref[fixture_id] = desk_b_ref.strip()
         self.fixture_creator[fixture_id] = creator
         self.fixture_state[fixture_id] = "OPEN"
         self.fixture_verdict[fixture_id] = ""
@@ -282,11 +313,15 @@ class Whistle(gl.contract.Contract):
             verdict, code, scoreline = "INCONCLUSIVE", "WINDOW_EXPIRED", None
         else:
             fixture_id_local = fixture_id
+            desk_refs_local = {
+                "desk_a": str(self.fixture_desk_a_ref[fixture_id]),
+                "desk_b": str(self.fixture_desk_b_ref[fixture_id]),
+            }
 
             def leader_fn() -> str:
                 sources_raw = {}
                 for desk in DESK_IDS:
-                    url = build_desk_url(desk, fixture_id_local)
+                    url = build_desk_url(desk, desk_refs_local[desk])
                     try:
                         resp = gl.nondet.web.get(url)
                         status = getattr(resp, "status", 200)
@@ -650,6 +685,8 @@ class Whistle(gl.contract.Contract):
             self.fixture_home[fixture_id],
             self.fixture_away[fixture_id],
             int(self.fixture_kickoff[fixture_id]),
+            self.fixture_desk_a_ref.get(fixture_id, ""),
+            self.fixture_desk_b_ref.get(fixture_id, ""),
         )
 
     @gl.public.view

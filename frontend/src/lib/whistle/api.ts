@@ -29,8 +29,17 @@ export const createFixture = (
   home: string,
   away: string,
   kickoffUnix: number,
+  deskARef: string,
+  deskBRef: string,
   bondWei: bigint
-) => submitWrite(ctx.provider, ctx.account, "create_fixture", [fixtureId, home, away, kickoffUnix], bondWei);
+) =>
+  submitWrite(
+    ctx.provider,
+    ctx.account,
+    "create_fixture",
+    [fixtureId, home, away, kickoffUnix, deskARef, deskBRef],
+    bondWei
+  );
 
 export const placeBet = (ctx: WalletCtx, fixtureId: string, outcome: string, amountWei: bigint) =>
   submitWrite(ctx.provider, ctx.account, "place_bet", [fixtureId, outcome], amountWei);

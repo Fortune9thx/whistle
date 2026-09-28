@@ -2,13 +2,13 @@
 
 | Surface | State |
 |---|---|
-| Contract tests | 94/94 passing (45 pure-Python `whistle_lib` + 49 `gltest` direct-mode) |
+| Contract tests | 117/117 passing (68 pure-Python `whistle_lib` + 49 `gltest` direct-mode) |
 | `genvm-lint check` | passing, 3 checks |
 | `genvm-lint typecheck` | 0 errors, 0 warnings |
-| Bundle size | 49,813 / 52,224 bytes (95.4%) |
+| Bundle size | 48,495 / 52,224 bytes (92.9%) |
 | GitHub | live -- [github.com/Fortune9thx/whistle](https://github.com/Fortune9thx/whistle) |
 | Vercel | live -- [whistle-brown-ten.vercel.app](https://whistle-brown-ten.vercel.app) |
-| Studio Next deploy | **live** -- `0xB7c5Ec5dc5d7A006Ef5dDE28E316E6A0586D4D36` |
+| Studio Next deploy | `0xB7c5Ec5dc5d7A006Ef5dDE28E316E6A0586D4D36` -- live, but **superseded by pending redeploy** (see below) |
 
 ## Studio Next / Studio Dev, chain 61997
 
@@ -73,6 +73,51 @@ mainnet.
 `bradbury-deploy` account already active on this machine). See
 `deploy/deployments.json` for the full record including the exact
 deployed bundle's sha256.
+
+## Pending redeploy (blocking a decisive live settlement)
+
+A live-endpoint audit found that the contract as deployed at
+`0xB7c5...4D36` **can never reach a decisive verdict**, for three
+independent reasons, each confirmed against the real APIs:
+
+1. `desk_a`'s parser required `strStatus`, which TheSportsDB's free tier
+   returns as `null` even for a match finished in 2014 -- so desk_a was
+   never usable.
+2. `desk_b`'s parser read `matchStatus`/`homeGoals`/`awayGoals`/
+   `lastUpdate`; OpenLigaDB returns `matchIsFinished`, `matchResults[]`
+   (`After90Minutes` -> `pointsTeam1`/`pointsTeam2`) and
+   `lastUpdateDateTime`. None of those keys existed in its responses --
+   so desk_b was never usable either.
+3. Both desks were queried by one shared `fixture_id`, but their id
+   spaces are unrelated: `441613` is Liverpool vs Swansea on TheSportsDB
+   and answers `No match with Id 441613 found!` -- as plain text, not
+   JSON -- on OpenLigaDB.
+
+Every fixture on the deployed contract would therefore settle
+INCONCLUSIVE, always. All three are fixed in source: a fixture now
+carries one validated reference per desk, both parsers are written
+against captured live responses, and the competition is the Bundesliga
+(the only one both desks carry). The fix changes contract logic and
+storage, so it **requires a redeploy** -- a live GenVM contract cannot be
+patched in place.
+
+Bundle ready to deploy: `sha256:e475c7f5f31746551ceab20a74e3a42fa51c75e6d26c4eef7689232857ab45ba`,
+48,495 / 52,224 bytes, `genvm-lint check` + `typecheck` clean,
+117/117 tests green, and the free `getContractSchemaForCode` probe
+against Studio Next resolves it with `create_fixture` carrying
+`desk_a_ref`/`desk_b_ref`.
+
+Redeploy with the same probe-first protocol already documented below:
+
+```bash
+python contracts/build_bundle.py
+node deploy/probe_schema.mjs contracts/build/Whistle.deploy.py   # free
+genlayer deploy --contract contracts/build/Whistle.deploy.py \
+  --args 0xC6E6d3b2acCaECeCeB40Ad4bD3dF123DDCB4e537              # bare, unquoted
+```
+
+Then set `VITE_CONTRACT_ADDRESS` on Vercel to the new address, redeploy
+the frontend, and add the new entry to `deploy/deployments.json`.
 
 **Not done, and why**: no `create_fixture` call has been made against the
 live contract. It is a payable write, and `genlayer write` cannot attach

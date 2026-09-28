@@ -19,11 +19,24 @@ jobs:
           pip install --pre genlayer-test==0.30.0rc2 genvm-linter==0.11.1rc2 pytest
 
       - name: Build deploy bundle
+        # Fails outright if the bundle exceeds the 52,224-byte GenVM
+        # deploy ceiling, rather than letting an undeployable artifact
+        # through to a gas-costing deploy attempt.
         run: python contracts/build_bundle.py
+
+      - name: Bundle is reproducible from source
+        # The committed artifact must be exactly what this source builds,
+        # so the deployed sha256 recorded in deploy/deployments.json can
+        # be re-derived by anyone from the repo alone.
+        run: git diff --exit-code -- contracts/build/Whistle.deploy.py
 
       - name: Lint bundled contract
         run: |
           PYTHONIOENCODING=utf-8 genvm-lint check contracts/build/Whistle.deploy.py
+
+      - name: Typecheck bundled contract
+        run: |
+          PYTHONIOENCODING=utf-8 genvm-lint typecheck contracts/build/Whistle.deploy.py
 
       - name: Run direct-mode tests
         run: python -m pytest tests/direct -q
@@ -39,9 +52,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install
-        run: npm install
+        # `ci`, not `install`: the lockfile is authoritative, and a drift
+        # between it and package.json should fail rather than be patched
+        # up silently.
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
 
       - name: Build
         run: npm run build

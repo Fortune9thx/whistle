@@ -21,6 +21,9 @@ export interface AppealRecord {
 export interface Fixture {
   fixture_id: string;
   competition: string;
+  /** The publisher-side row this fixture is bound to on each locked desk.
+   *  The two desks use unrelated id spaces, so both are recorded. */
+  desk_refs?: { desk_a: string; desk_b: string };
   home: string;
   away: string;
   kickoff_unix: number;
@@ -65,6 +68,7 @@ export interface Config {
   recover_refund_after: number;
   max_open_per_creator: number;
   max_page_size: number;
+  max_desk_ref_len: number;
   valid_appeal_grounds: string[];
   treasury: string;
   appeal_window_seconds: number;

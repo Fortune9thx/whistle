@@ -8,7 +8,7 @@ WHISTLE settles one object on-chain: the full-time 90-minute scoreline of a lock
 
 ## What GenLayer decides
 
-Given a locked fixture (same `fixture_id`, both desks published a completed **FT** result -- not `LIVE`, not a preview), GenLayer's consensus owns exactly one contested judgment call: **do the two locked desks agree on the same integer scoreline for the same completed match?** Each validator independently fetches both locked desk URLs itself (no LLM is involved anywhere in this contract -- the non-determinism is purely "did two validators' own live HTTP fetches agree", via `gl.vm.run_nondet`/`gl.vm.spawn_sandbox`); code alone then maps the agreed scoreline to a 1X2 verdict. No party ever claims a bare `HOME`/`DRAW`/`AWAY` value that the contract trusts directly -- see docs/architecture.md for how `verdict_1x2` is always recomputed from `scoreline`, never read as anyone's claim.
+Given a locked fixture (each desk named by its own publisher-side reference, both desks having published a completed **FT** result -- not `LIVE`, not a preview), GenLayer's consensus owns exactly one contested judgment call: **do the two locked desks agree on the same integer scoreline for the same completed match?** Each validator independently fetches both locked desk URLs itself (no LLM is involved anywhere in this contract -- the non-determinism is purely "did two validators' own live HTTP fetches agree", via `gl.vm.run_nondet`/`gl.vm.spawn_sandbox`); code alone then maps the agreed scoreline to a 1X2 verdict. No party ever claims a bare `HOME`/`DRAW`/`AWAY` value that the contract trusts directly -- see docs/architecture.md for how `verdict_1x2` is always recomputed from `scoreline`, never read as anyone's claim.
 
 ## Adversary
 
@@ -17,6 +17,21 @@ A leader node (honest or compromised) that fabricates a scoreline, a stale desk 
 ## Must agree vs. may differ
 
 **Must match exactly, both desks:** `status == "FT"`, integer `home`/`away` goals. **May differ freely:** each desk's own `asof` timestamp, response envelope shape, and any surrounding prose/HTML -- only the derived `(status, home, away)` facts are ever compared. See `whistle_lib.compare_envelopes`.
+
+## The two desks, and why a fixture names both
+
+`desk_a` is [TheSportsDB](https://www.thesportsdb.com) and `desk_b` is
+[OpenLigaDB](https://api.openligadb.de). They do **not** share an
+identifier space -- id `441613` is Liverpool vs Swansea on one and does
+not exist on the other -- so a fixture carries one reference per desk
+(`desk_a_ref`, `desk_b_ref`), frozen at `create_fixture` and exposed by
+`get_fixture`/`get_constitution` so any verdict can be re-checked by
+hand. Each is validated as a bare digit string, because it is the only
+caller-supplied part of either otherwise-locked URL. The competition is
+the Bundesliga because that is the overlap both desks actually carry.
+Both parsers are written against the endpoints' real live responses --
+the exact shapes, and why each is read the way it is, are in
+[docs/architecture.md](docs/architecture.md).
 
 ## Failure policy
 
@@ -37,7 +52,7 @@ Full API in [docs/architecture.md](docs/architecture.md). Writes: `create_fixtur
 
 ## Tests
 
-94 tests: 45 pure-Python (`whistle_lib`, no `genlayer` import -- the comparator, fee/payout math, envelope self-consistency) + 49 `gltest` direct-mode (real GenVM sandbox deploy + full state-machine execution). `genvm-lint check`/`typecheck` both pass on the bundled artifact. See [docs/testing.md](docs/testing.md).
+117 tests: 68 pure-Python (`whistle_lib`, no `genlayer` import -- the comparator, fee/payout math, envelope self-consistency, and both desks' real response shapes) + 49 `gltest` direct-mode (real GenVM sandbox deploy + full state-machine execution). `genvm-lint check`/`typecheck` both pass on the bundled artifact. See [docs/testing.md](docs/testing.md).
 
 ## Network
 
@@ -48,7 +63,7 @@ Studio Next / Studio Devnet, chain id **61997**, `https://studio-dev.genlayer.co
 - **A cron job or off-chain oracle as ground truth.** Every scoreline is fetched and cross-checked live, on-chain, by GenVM consensus at resolve time -- never pre-computed and merely attested.
 - **Raw-HTML `strict_eq` on either desk's response.** Both locked desks are JSON; `asof`/markup/whitespace are explicitly excluded from the comparison so cosmetic drift between two honest fetches never causes a false reject.
 - **Any model deciding 1X2 -- or appearing in this contract at all.** There is no LLM call anywhere in WHISTLE. Each validator's own `gl.nondet.web.get` fetch supplies the raw desk envelopes, deterministic Python parses them, and `derive_1x2` -- a pure, auditable, three-line function in `whistle_lib.py` -- maps the agreed scoreline to a verdict.
-- **One contract per match.** A single factory-style contract holds every `UCL_LP` fixture -- no per-match redeploy.
+- **One contract per match.** A single factory-style contract holds every Bundesliga (`BL1`) fixture -- no per-match redeploy.
 - **A 0% "no closer" design.** Every non-terminal path (stalled appeal, unresolved fixture, zero-bet fixture) has an explicit, permissionless escape hatch; nothing can get stuck forever waiting on one specific actor.
 
 ## License

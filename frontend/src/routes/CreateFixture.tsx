@@ -32,6 +32,8 @@ export function CreateFixture() {
   const [home, setHome] = useState("");
   const [away, setAway] = useState("");
   const [kickoff, setKickoff] = useState("");
+  const [deskARef, setDeskARef] = useState("");
+  const [deskBRef, setDeskBRef] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,22 +43,41 @@ export function CreateFixture() {
     const kickoffUnix = kickoff ? Math.floor(new Date(kickoff).getTime() / 1000) : undefined;
     return {
       fixture_id: fixtureId,
-      competition: "UCL_LP",
+      competition: config?.competition ?? "BL1",
       home: home || "Home",
       away: away || "Away",
       state: "OPEN",
       kickoff_unix: kickoffUnix ?? now + minLeadSeconds,
       pool_by_outcome: { HOME: "0", DRAW: "0", AWAY: "0" } as any,
+      desk_refs: { desk_a: deskARef, desk_b: deskBRef },
     };
-  }, [fixtureId, home, away, kickoff, now, minLeadSeconds]);
+  }, [fixtureId, home, away, kickoff, now, minLeadSeconds, config, deskARef, deskBRef]);
+
+  // Mirrors the contract's own rule exactly (is_valid_desk_ref): a bare
+  // run of digits, so a reference can never smuggle a path or query into
+  // an otherwise locked publisher URL.
+  const maxRefLen = config?.max_desk_ref_len ?? 24;
+  const refIsValid = (ref: string) => /^\d+$/.test(ref.trim()) && ref.trim().length <= maxRefLen;
+  const deskARefOk = refIsValid(deskARef);
+  const deskBRefOk = refIsValid(deskBRef);
+  const canSubmit = Boolean(ctx && fixtureId && home && away && kickoff && deskARefOk && deskBRefOk);
 
   async function submit() {
-    if (!ctx || !fixtureId || !home || !away || !kickoff) return;
+    if (!canSubmit || !ctx) return;
     setBusy(true);
     setError(null);
     try {
       const kickoffUnix = Math.floor(new Date(kickoff).getTime() / 1000);
-      await api.createFixture(ctx, fixtureId, home, away, kickoffUnix, createBondWei);
+      await api.createFixture(
+        ctx,
+        fixtureId,
+        home,
+        away,
+        kickoffUnix,
+        deskARef.trim(),
+        deskBRef.trim(),
+        createBondWei
+      );
       navigate(`/app/f/${fixtureId}`);
     } catch (e: any) {
       setError(e?.message ?? String(e));
@@ -90,23 +111,49 @@ export function CreateFixture() {
           )}
 
           <Field label="Fixture id">
-            <input value={fixtureId} onChange={(e) => setFixtureId(e.target.value)} placeholder="ucl-2026-md1-001" />
+            <input value={fixtureId} onChange={(e) => setFixtureId(e.target.value)} placeholder="bl1-2026-md1-001" />
           </Field>
           <div className="create-form-row">
             <Field label="Home">
-              <input value={home} onChange={(e) => setHome(e.target.value)} placeholder="Real Madrid" />
+              <input value={home} onChange={(e) => setHome(e.target.value)} placeholder="Bayern Munich" />
             </Field>
             <Field label="Away">
-              <input value={away} onChange={(e) => setAway(e.target.value)} placeholder="Bayern Munich" />
+              <input value={away} onChange={(e) => setAway(e.target.value)} placeholder="Borussia Dortmund" />
             </Field>
           </div>
+          <div className="create-form-row">
+            <Field label="desk_a reference (TheSportsDB idEvent)">
+              <input
+                value={deskARef}
+                onChange={(e) => setDeskARef(e.target.value)}
+                placeholder="441613"
+                inputMode="numeric"
+                aria-invalid={deskARef !== "" && !deskARefOk}
+              />
+            </Field>
+            <Field label="desk_b reference (OpenLigaDB matchID)">
+              <input
+                value={deskBRef}
+                onChange={(e) => setDeskBRef(e.target.value)}
+                placeholder="66632"
+                inputMode="numeric"
+                aria-invalid={deskBRef !== "" && !deskBRefOk}
+              />
+            </Field>
+          </div>
+          <p className="mute" style={{ fontSize: 12.5, margin: "-10px 0 18px" }}>
+            The two desks key the same match by unrelated ids, so each is
+            named separately. Digits only, up to {maxRefLen} -- the contract
+            rejects anything else, because this is the only caller-supplied
+            part of either locked publisher URL.
+          </p>
           <Field label="Kickoff (local time)">
             <input type="datetime-local" min={minKickoff} value={kickoff} onChange={(e) => setKickoff(e.target.value)} />
           </Field>
 
           {error && <p className="pill pill-down" style={{ marginTop: 4, marginBottom: 16 }}>{error}</p>}
 
-          <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", marginTop: 8 }} disabled={!ctx || busy} onClick={submit}>
+          <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", marginTop: 8 }} disabled={!canSubmit || busy} onClick={submit}>
             {busy ? "waiting for consensus..." : `Create (${createBondGen} GEN bond)`}
           </button>
         </div>

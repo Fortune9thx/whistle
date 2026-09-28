@@ -131,3 +131,64 @@ facts, when the actual mechanism is a pure `gl.nondet.web.get` fetch plus
 deterministic Python parsing with no LLM call anywhere in the contract.
 Everything in this section has been fixed in the current source; see
 `docs/STATUS.md` for whether a corresponding redeploy has landed.
+
+## Third pass: live-endpoint verification
+
+Both earlier passes reviewed the contract against its own source and
+against a checklist. Neither ever fetched the two locked publisher
+endpoints. Doing that turned up three defects that no amount of
+source-level review could surface, because each is a mismatch between
+the code and the outside world rather than an inconsistency inside the
+code:
+
+10. **`desk_a` could never produce a usable envelope.** The parser
+    required `strStatus`, which TheSportsDB's free tier returns as
+    `null` even for a match finished years ago. `_normalize_status("")`
+    yielded `UNKNOWN`, so `usable` was always `False`. Fixed: an
+    explicit status is honoured when present, and completion is
+    otherwise inferred from a full integer scoreline with
+    `strPostponed == "no"` -- safe only because `resolve()` cannot run
+    until 105+ minutes after kickoff and desk_b must independently
+    report the match finished.
+
+11. **`desk_b` could never produce a usable envelope either.** The
+    parser read `matchStatus`, `homeGoals`, `awayGoals` and
+    `lastUpdate`. OpenLigaDB returns none of those keys; completion is
+    the boolean `matchIsFinished` and goals live in `matchResults[]`.
+    Fixed by reading the `After90Minutes` entry specifically, which also
+    makes `RESULT_TYPE = "FT_90"` literally true -- the extra-time and
+    penalties entries are excluded, so a shootout can never be mistaken
+    for the full-time scoreline.
+
+12. **The two desks were queried by one shared `fixture_id`, but their
+    id spaces are unrelated.** `441613` is Liverpool vs Swansea on
+    TheSportsDB and answers `No match with Id 441613 found!` -- plain
+    text, not JSON -- on OpenLigaDB. Fixed: a fixture carries one
+    reference per desk, each validated as a bare digit string so it
+    cannot inject a path or query into a locked URL, both frozen at
+    creation and exposed by `get_fixture`/`get_constitution` for
+    independent audit.
+
+Together these were fatal to the contract's central claim: every fixture
+would have settled INCONCLUSIVE, and the two-desk agreement that the
+whole design rests on could never fire. A fourth, related correction:
+`COMPETITION` was `UCL_LP`, but OpenLigaDB carries German league
+football only, so no UEFA fixture could ever have been present on both
+desks. It is now `BL1`, the competition both desks actually cover.
+
+Also fixed in this pass:
+
+- `_fixture_view` returned a hardcoded `"UCL_LP"` rather than the
+  `COMPETITION` constant, so it would have drifted regardless.
+- `contracts/build_bundle.py` only **warned** when the bundle exceeded
+  the 52,224-byte GenVM deploy ceiling, so CI would have passed an
+  undeployable artifact. It now fails, and strips comments from the
+  generated file (sources keep them), which also bought back headroom:
+  48,495 bytes against 49,813 before.
+- CI never ran `genvm-lint typecheck`, never ran the frontend linter,
+  used `npm install` rather than `npm ci`, and never checked that the
+  committed bundle matches what the source builds. All four are now
+  enforced.
+
+These changes alter contract logic and storage, so they require a
+redeploy; see `docs/STATUS.md`.

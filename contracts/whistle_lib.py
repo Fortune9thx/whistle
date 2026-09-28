@@ -20,7 +20,11 @@ from __future__ import annotations
 # Constitution / constants (frozen; mirrored by Whistle.get_constitution())
 # ---------------------------------------------------------------------------
 
-COMPETITION = "UCL_LP"                 # V1 template: UEFA league-phase, 90 min only
+# The two locked desks must both actually carry the competition, or no
+# fixture can ever reach two matching FT scorelines. OpenLigaDB (desk_b)
+# publishes German league football only, so the Bundesliga is the overlap
+# with TheSportsDB (desk_a). Verified against both live endpoints.
+COMPETITION = "BL1"                    # 1. Fussball-Bundesliga, 90 min only
 RESULT_TYPE = "FT_90"
 MARKET = "1X2"
 OUTCOMES: tuple[str, str, str] = ("HOME", "DRAW", "AWAY")
@@ -47,10 +51,14 @@ VALID_STATUSES: tuple[str, str, str, str, str, str] = (
 
 U256_MAX = 2**256 - 1
 
-# Locked publisher endpoints -- never accept a caller-supplied URL. Each
-# desk is queried by the SAME fixture_id; both desks are assumed to share
-# a canonical id space for this V1 template. Response format is JSON for
-# both desks in V1 (html_table unused).
+# Locked publisher endpoints -- never accept a caller-supplied URL.
+#
+# The two desks do NOT share an id space: desk_a is keyed by TheSportsDB's
+# idEvent and desk_b by OpenLigaDB's matchID, and the same integer denotes
+# unrelated matches on each. A fixture therefore carries one reference per
+# desk, both frozen at create_fixture, and the contract substitutes each
+# desk's own reference into its own locked URL. Only the reference varies;
+# host, path and shape are fixed here and can never be caller-supplied.
 PUBLISHER_REGISTRY: dict[str, dict] = {
     "desk_a": {
         "host": "https://www.thesportsdb.com",
@@ -86,13 +94,32 @@ def assert_u256(x: int) -> int:
 # variable. Callers never supply a URL.
 # ---------------------------------------------------------------------------
 
-def build_desk_url(desk_id: str, fixture_id: str) -> str:
+def build_desk_url(desk_id: str, desk_ref: str) -> str:
+    """`desk_ref` is that desk's OWN publisher-side identifier, frozen at
+    create_fixture -- TheSportsDB's idEvent for desk_a, OpenLigaDB's
+    matchID for desk_b. Validated to be a bare digit string before it is
+    ever stored, so it cannot smuggle a path or query into the URL."""
     if desk_id not in PUBLISHER_REGISTRY:
         raise ValueError(f"unknown desk: {desk_id}")
+    if not is_valid_desk_ref(desk_ref):
+        raise ValueError(f"bad desk ref: {desk_ref!r}")
     reg = PUBLISHER_REGISTRY[desk_id]
     if desk_id == "desk_a":
-        return f"{reg['host']}{reg['path']}?id={fixture_id}"
-    return f"{reg['host']}{reg['path']}/{fixture_id}"
+        return f"{reg['host']}{reg['path']}?id={desk_ref}"
+    return f"{reg['host']}{reg['path']}/{desk_ref}"
+
+
+MAX_DESK_REF_LEN = 24
+
+
+def is_valid_desk_ref(desk_ref: object) -> bool:
+    """A publisher reference is a bare run of digits. Rejecting anything
+    else keeps a caller from injecting `../`, a query string or a second
+    host into an otherwise locked URL."""
+    if not isinstance(desk_ref, str):
+        return False
+    s = desk_ref.strip()
+    return 0 < len(s) <= MAX_DESK_REF_LEN and s.isdigit()
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +135,7 @@ class WhistleValidationError(Exception):
 def validate_constitution(payload: dict, now_ts: int, open_count_for_creator: int) -> None:
     if not isinstance(payload, dict):
         raise WhistleValidationError("malformed_constitution")
-    for key in ("fixture_id", "home", "away", "kickoff_unix"):
+    for key in ("fixture_id", "home", "away", "kickoff_unix", "desk_a_ref", "desk_b_ref"):
         if key not in payload:
             raise WhistleValidationError(f"missing_{key}")
     fixture_id = payload["fixture_id"]
@@ -126,11 +153,22 @@ def validate_constitution(payload: dict, now_ts: int, open_count_for_creator: in
         raise WhistleValidationError("bad_kickoff")
     if kickoff < now_ts + MIN_LEAD:
         raise WhistleValidationError("below_min_lead")
+    if not is_valid_desk_ref(payload["desk_a_ref"]):
+        raise WhistleValidationError("bad_desk_a_ref")
+    if not is_valid_desk_ref(payload["desk_b_ref"]):
+        raise WhistleValidationError("bad_desk_b_ref")
     if open_count_for_creator >= MAX_OPEN_PER_CREATOR:
         raise WhistleValidationError("creator_cap_reached")
 
 
-def constitution_view(fixture_id: str, home: str, away: str, kickoff_unix: int) -> dict:
+def constitution_view(
+    fixture_id: str,
+    home: str,
+    away: str,
+    kickoff_unix: int,
+    desk_a_ref: str = "",
+    desk_b_ref: str = "",
+) -> dict:
     return {
         "competition": COMPETITION,
         "fixture_id": fixture_id,
@@ -140,6 +178,14 @@ def constitution_view(fixture_id: str, home: str, away: str, kickoff_unix: int) 
         "publishers": list(DESK_IDS),
         "result_type": RESULT_TYPE,
         "market": MARKET,
+        # The exact publisher-side rows this fixture is bound to. Frozen
+        # at creation and shown here so anyone can re-fetch both desks by
+        # hand and check the contract's verdict against them.
+        "desk_refs": {"desk_a": desk_a_ref, "desk_b": desk_b_ref},
+        "source_urls": {
+            "desk_a": build_desk_url("desk_a", desk_a_ref) if is_valid_desk_ref(desk_a_ref) else "",
+            "desk_b": build_desk_url("desk_b", desk_b_ref) if is_valid_desk_ref(desk_b_ref) else "",
+        },
     }
 
 
@@ -162,12 +208,32 @@ def get_constitution_dict() -> dict:
         "max_open_per_creator": MAX_OPEN_PER_CREATOR,
         "max_page_size": MAX_PAGE_SIZE,
         "valid_appeal_grounds": list(VALID_APPEAL_GROUNDS),
+        "max_desk_ref_len": MAX_DESK_REF_LEN,
     }
 
 
 # ---------------------------------------------------------------------------
-# Per-desk source parsing -> the ONLY thing a model is ever asked to
-# extract is these raw structured facts. It never derives a 1X2 verdict.
+# Per-desk source parsing. No model is involved at any point: each desk's
+# JSON is parsed by the deterministic code below into the same four raw
+# facts (status, home, away, asof). Nothing here derives a 1X2 verdict.
+#
+# Both shapes below are written against the endpoints' ACTUAL live
+# responses, captured and re-checked against the real APIs:
+#
+#   desk_a  TheSportsDB lookupevent.php
+#           strStatus is null even for long-finished matches on the free
+#           tier, so completion is inferred from both integer scores
+#           being present with strPostponed == "no". The contract only
+#           ever calls this 105+ minutes after kickoff (and both desks
+#           must agree), so an in-play score cannot be read as full time
+#           without desk_b independently reporting the match finished.
+#
+#   desk_b  OpenLigaDB getmatchdata/{matchID}
+#           Completion is the boolean matchIsFinished. Goals live in
+#           matchResults[], in the entry whose resultTypeKind is
+#           "After90Minutes" -- which is exactly this contract's FT_90
+#           result type, and deliberately NOT the extra-time or
+#           penalties entry.
 # ---------------------------------------------------------------------------
 
 def parse_response_body(desk_id: str, raw_text: str | None) -> dict:
@@ -192,19 +258,18 @@ def parse_response_body(desk_id: str, raw_text: str | None) -> dict:
         row = events[0]
         if not isinstance(row, dict):
             return {"usable": False, "reason": "malformed_event"}
-        status_raw = str(row.get("strStatus") or "").upper()
         home_raw, away_raw = row.get("intHomeScore"), row.get("intAwayScore")
         asof = row.get("strTimestamp") or 0
+        status = _desk_a_status(row, home_raw, away_raw)
     elif desk_id == "desk_b":
         if not isinstance(body, dict):
             return {"usable": False, "reason": "malformed_event"}
-        status_raw = str(body.get("matchStatus") or "").upper()
-        home_raw, away_raw = body.get("homeGoals"), body.get("awayGoals")
-        asof = body.get("lastUpdate") or 0
+        asof = body.get("lastUpdateDateTime") or 0
+        home_raw, away_raw = _desk_b_goals(body.get("matchResults"))
+        status = "FT" if body.get("matchIsFinished") is True else "LIVE"
     else:
         return {"usable": False, "reason": "unknown_desk"}
 
-    status = _normalize_status(status_raw)
     home = _to_nonneg_int(home_raw)
     away = _to_nonneg_int(away_raw)
     usable = status == "FT" and home is not None and away is not None
@@ -215,6 +280,51 @@ def parse_response_body(desk_id: str, raw_text: str | None) -> dict:
         "away": away,
         "asof": asof,
     }
+
+
+def _desk_a_status(row: dict, home_raw: object, away_raw: object) -> str:
+    """TheSportsDB free tier leaves strStatus null on finished matches, so
+    an explicit status is honoured when present and completion is
+    otherwise inferred from a full integer scoreline on a match that was
+    not postponed."""
+    explicit = str(row.get("strStatus") or row.get("strStatusShort") or "").strip()
+    if explicit:
+        normalized = _normalize_status(explicit)
+        if normalized != "UNKNOWN":
+            return normalized
+    if str(row.get("strPostponed") or "").strip().lower() in ("yes", "true", "1"):
+        return "POSTPONED"
+    if _to_nonneg_int(home_raw) is None or _to_nonneg_int(away_raw) is None:
+        return "PRE"
+    return "FT"
+
+
+def _desk_b_goals(results: object) -> tuple[object, object]:
+    """Pull the 90-minute result out of OpenLigaDB's matchResults list.
+    Prefers the explicit After90Minutes entry; falls back to the lowest
+    resultOrderID that is not extra time or penalties, so a shootout
+    scoreline can never be read as the full-time one."""
+    if not isinstance(results, list):
+        return None, None
+    ninety = None
+    for entry in results:
+        if not isinstance(entry, dict):
+            continue
+        kind = str(entry.get("resultTypeKind") or "").strip()
+        if kind == "After90Minutes":
+            ninety = entry
+            break
+    if ninety is None:
+        candidates = [
+            e for e in results
+            if isinstance(e, dict)
+            and str(e.get("resultTypeKind") or "").strip() not in ("AfterExtraTime", "AfterPenalties")
+            and str(e.get("resultTypeKind") or "").strip() != "HalfTime"
+        ]
+        if len(candidates) != 1:
+            return None, None
+        ninety = candidates[0]
+    return ninety.get("pointsTeam1"), ninety.get("pointsTeam2")
 
 
 def _normalize_status(raw: str) -> str:
@@ -249,9 +359,9 @@ def _to_nonneg_int(raw) -> int | None:
 
 
 # ---------------------------------------------------------------------------
-# Code-side derivation. Model NEVER returns HOME/DRAW/AWAY -- it (via
-# parse_response_body above) only ever produces raw per-desk facts; this
-# function derives everything downstream deterministically.
+# Code-side derivation. Nothing upstream ever supplies a HOME/DRAW/AWAY
+# value: parse_response_body produces only raw per-desk facts, and this
+# function derives the verdict from them deterministically.
 # ---------------------------------------------------------------------------
 
 def derive_1x2(home: int, away: int) -> str:
@@ -263,8 +373,8 @@ def derive_1x2(home: int, away: int) -> str:
 
 
 def _source_ok(src: object) -> tuple[bool, int | None, int | None]:
-    """Recomputes usability from status/goals directly -- never trusts a
-    model-claimed `usable` flag blindly."""
+    """Recomputes usability from status/goals directly -- never trusts the
+    `usable` flag a parsed source carries."""
     if not isinstance(src, dict):
         return False, None, None
     status = src.get("status")
@@ -312,12 +422,12 @@ def evaluate_sources(sources: dict) -> tuple[str, dict | None]:
 
 def build_envelope(fixture_id: str, sources_raw: dict) -> dict:
     """Pure: given the raw structured per-desk extraction (sources_raw,
-    already parsed -- no LLM involved), deterministically derive
-    scoreline/verdict_1x2/code.
+    already parsed by deterministic code -- no LLM involved anywhere),
+    derive scoreline/verdict_1x2/code.
     This is what BOTH leader_fn and validator_fn build from their own
     independently-fetched sources_raw -- code always recomputes verdict
-    from scoreline; a model can never make the contract believe a
-    HOME/DRAW/AWAY it didn't derive from matching FT goals itself."""
+    from scoreline, so no leader can make the contract believe a
+    HOME/DRAW/AWAY it did not derive from matching FT goals itself."""
     code, scoreline = evaluate_sources(sources_raw)
     verdict = derive_1x2(scoreline["home"], scoreline["away"]) if scoreline else "INCONCLUSIVE"
     return {

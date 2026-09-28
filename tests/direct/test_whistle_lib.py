@@ -20,10 +20,12 @@ import whistle_lib as lib
 
 def _payload(**overrides):
     base = {
-        "fixture_id": "ucl-2026-md1-001",
-        "home": "Real Madrid",
-        "away": "Bayern Munich",
+        "fixture_id": "bl1-2026-md1-001",
+        "home": "Bayern Munich",
+        "away": "Borussia Dortmund",
         "kickoff_unix": 2_000_000_000,
+        "desk_a_ref": "441613",
+        "desk_b_ref": "66632",
     }
     base.update(overrides)
     return base
@@ -47,7 +49,7 @@ def test_validate_constitution_min_lead_boundary_ok():
 
 def test_validate_constitution_home_equals_away():
     with pytest.raises(lib.WhistleValidationError) as exc:
-        lib.validate_constitution(_payload(away="Real Madrid"), now_ts=0, open_count_for_creator=0)
+        lib.validate_constitution(_payload(away="Bayern Munich"), now_ts=0, open_count_for_creator=0)
     assert exc.value.code == "home_equals_away"
 
 
@@ -70,16 +72,47 @@ def test_validate_constitution_missing_field():
 # ---------------------------------------------------------------------------
 
 def test_build_desk_url_locked_host():
-    url_a = lib.build_desk_url("desk_a", "fx-1")
-    url_b = lib.build_desk_url("desk_b", "fx-1")
+    url_a = lib.build_desk_url("desk_a", "441613")
+    url_b = lib.build_desk_url("desk_b", "66632")
     assert url_a.startswith(lib.PUBLISHER_REGISTRY["desk_a"]["host"])
     assert url_b.startswith(lib.PUBLISHER_REGISTRY["desk_b"]["host"])
-    assert "fx-1" in url_a and "fx-1" in url_b
+    assert "441613" in url_a
+    assert "66632" in url_b
+
+
+def test_build_desk_url_uses_each_desks_own_reference():
+    """The two desks key the same match by unrelated ids, so each URL must
+    carry its own desk's reference and never the other's."""
+    url_a = lib.build_desk_url("desk_a", "441613")
+    url_b = lib.build_desk_url("desk_b", "66632")
+    assert "66632" not in url_a
+    assert "441613" not in url_b
 
 
 def test_build_desk_url_unknown_desk_rejected():
     with pytest.raises(ValueError):
-        lib.build_desk_url("desk_z", "fx-1")
+        lib.build_desk_url("desk_z", "441613")
+
+
+@pytest.mark.parametrize(
+    "bad_ref",
+    ["", "   ", "fx-1", "../secrets", "1 OR 1", "441613?x=1", "441613/../y", "9" * 25, None, 441613],
+)
+def test_build_desk_url_rejects_non_numeric_reference(bad_ref):
+    """A reference is the only caller-supplied part of a locked URL, so
+    anything that is not a bare run of digits must be refused outright."""
+    with pytest.raises(ValueError):
+        lib.build_desk_url("desk_a", bad_ref)
+
+
+@pytest.mark.parametrize("bad_ref", ["", "fx-1", "../x", None, 7])
+def test_validate_constitution_rejects_bad_desk_refs(bad_ref):
+    with pytest.raises(lib.WhistleValidationError) as exc:
+        lib.validate_constitution(_payload(desk_a_ref=bad_ref), now_ts=0, open_count_for_creator=0)
+    assert exc.value.code == "bad_desk_a_ref"
+    with pytest.raises(lib.WhistleValidationError) as exc:
+        lib.validate_constitution(_payload(desk_b_ref=bad_ref), now_ts=0, open_count_for_creator=0)
+    assert exc.value.code == "bad_desk_b_ref"
 
 
 # ---------------------------------------------------------------------------
@@ -92,10 +125,91 @@ def test_parse_desk_a_ft():
     assert parsed == {"usable": True, "status": "FT", "home": 2, "away": 1, "asof": "t0"}
 
 
+def test_parse_desk_a_ft_with_null_status():
+    """Captured from the live endpoint: TheSportsDB's free tier returns a
+    null strStatus even for a match finished years ago, so completion is
+    inferred from a full integer scoreline that was not postponed. This is
+    the shape the previous parser silently failed on."""
+    raw = (
+        '{"events": [{"idEvent": "441613", "strStatus": null, "strStatusShort": null,'
+        ' "intHomeScore": "4", "intAwayScore": "1",'
+        ' "strTimestamp": "2014-12-29T20:00:00", "strPostponed": "no"}]}'
+    )
+    parsed = lib.parse_response_body("desk_a", raw)
+    assert parsed["usable"] is True
+    assert parsed["status"] == "FT"
+    assert (parsed["home"], parsed["away"]) == (4, 1)
+
+
+def test_parse_desk_a_null_status_without_scores_is_not_ft():
+    raw = '{"events": [{"strStatus": null, "intHomeScore": null, "intAwayScore": null, "strPostponed": "no"}]}'
+    parsed = lib.parse_response_body("desk_a", raw)
+    assert parsed["usable"] is False
+    assert parsed["status"] == "PRE"
+
+
+def test_parse_desk_a_postponed_never_usable():
+    raw = '{"events": [{"strStatus": null, "intHomeScore": "0", "intAwayScore": "0", "strPostponed": "yes"}]}'
+    parsed = lib.parse_response_body("desk_a", raw)
+    assert parsed["usable"] is False
+    assert parsed["status"] == "POSTPONED"
+
+
 def test_parse_desk_b_ft():
-    raw = '{"matchStatus": "FT", "homeGoals": 2, "awayGoals": 1, "lastUpdate": "t1"}'
+    """Captured from the live endpoint: OpenLigaDB reports completion as
+    the boolean matchIsFinished and goals inside matchResults, under the
+    After90Minutes entry -- not the matchStatus/homeGoals/awayGoals keys
+    the previous parser looked for, which do not exist in its responses."""
+    raw = (
+        '{"matchID": 66632, "matchIsFinished": true,'
+        ' "lastUpdateDateTime": "2023-08-20T21:45:15.31",'
+        ' "matchResults": ['
+        '   {"resultName": "Halbzeitergebnis", "pointsTeam1": 2, "pointsTeam2": 0,'
+        '    "resultOrderID": 1, "resultTypeKind": "HalfTime"},'
+        '   {"resultName": "Endergebnis", "pointsTeam1": 4, "pointsTeam2": 1,'
+        '    "resultOrderID": 2, "resultTypeKind": "After90Minutes"}]}'
+    )
     parsed = lib.parse_response_body("desk_b", raw)
-    assert parsed == {"usable": True, "status": "FT", "home": 2, "away": 1, "asof": "t1"}
+    assert parsed["usable"] is True
+    assert parsed["status"] == "FT"
+    assert (parsed["home"], parsed["away"]) == (4, 1)
+    assert parsed["asof"] == "2023-08-20T21:45:15.31"
+
+
+def test_parse_desk_b_ignores_half_time_and_shootout_results():
+    """FT_90 means the 90-minute scoreline: never half time, never the
+    extra-time or penalties line."""
+    raw = (
+        '{"matchIsFinished": true, "lastUpdateDateTime": "t",'
+        ' "matchResults": ['
+        '   {"pointsTeam1": 1, "pointsTeam2": 0, "resultTypeKind": "HalfTime"},'
+        '   {"pointsTeam1": 2, "pointsTeam2": 2, "resultTypeKind": "After90Minutes"},'
+        '   {"pointsTeam1": 3, "pointsTeam2": 2, "resultTypeKind": "AfterExtraTime"},'
+        '   {"pointsTeam1": 5, "pointsTeam2": 4, "resultTypeKind": "AfterPenalties"}]}'
+    )
+    parsed = lib.parse_response_body("desk_b", raw)
+    assert (parsed["home"], parsed["away"]) == (2, 2)
+    assert lib.derive_1x2(parsed["home"], parsed["away"]) == "DRAW"
+
+
+def test_parse_desk_b_unfinished_is_not_usable():
+    raw = '{"matchIsFinished": false, "lastUpdateDateTime": "t", "matchResults": []}'
+    parsed = lib.parse_response_body("desk_b", raw)
+    assert parsed["usable"] is False
+    assert parsed["status"] == "LIVE"
+
+
+def test_parse_desk_b_finished_but_no_results_is_not_usable():
+    raw = '{"matchIsFinished": true, "lastUpdateDateTime": "t", "matchResults": []}'
+    parsed = lib.parse_response_body("desk_b", raw)
+    assert parsed["usable"] is False
+
+
+def test_parse_desk_b_plain_text_miss_is_not_usable():
+    """A reference that does not exist on OpenLigaDB answers with plain
+    text, not JSON -- exactly what a mismatched id space produces."""
+    parsed = lib.parse_response_body("desk_b", "No match with Id 441613 found!")
+    assert parsed == {"usable": False, "reason": "decode_fail"}
 
 
 def test_parse_desk_a_live_unusable():

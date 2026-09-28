@@ -26,6 +26,12 @@ import whistle_lib as lib
 ANCHOR = datetime(2030, 1, 1, tzinfo=timezone.utc)
 ANCHOR_EPOCH = int(ANCHOR.timestamp())
 
+# The two desks key the same match by unrelated publisher ids, so every
+# fixture carries one reference per desk. These are real shapes from the
+# live endpoints: TheSportsDB idEvent and OpenLigaDB matchID.
+DESK_A_REF = "441613"
+DESK_B_REF = "66632"
+
 
 def _iso(epoch: int) -> str:
     return datetime.fromtimestamp(epoch, tz=timezone.utc).isoformat().replace("+00:00", "Z")
@@ -37,8 +43,24 @@ def _desk_a_body(status: str, home, away) -> str:
 
 
 def _desk_b_body(status: str, home, away) -> str:
-    status_map = {"FT": "FT", "LIVE": "LIVE", "PRE": "NS", "POSTPONED": "PPD", "ABANDONED": "ABD"}
-    return json.dumps({"matchStatus": status_map.get(status, status), "homeGoals": home, "awayGoals": away, "lastUpdate": "t1"})
+    """OpenLigaDB's real response shape: completion is the boolean
+    matchIsFinished, and the 90-minute goals live in matchResults under
+    the After90Minutes entry. It has no postponed/abandoned vocabulary --
+    anything not finished simply reports matchIsFinished false."""
+    results = []
+    if home is not None and away is not None:
+        results = [
+            {"resultName": "Halbzeitergebnis", "pointsTeam1": 0, "pointsTeam2": 0,
+             "resultOrderID": 1, "resultTypeKind": "HalfTime"},
+            {"resultName": "Endergebnis", "pointsTeam1": home, "pointsTeam2": away,
+             "resultOrderID": 2, "resultTypeKind": "After90Minutes"},
+        ]
+    return json.dumps({
+        "matchID": int(DESK_B_REF),
+        "matchIsFinished": status == "FT",
+        "lastUpdateDateTime": "t1",
+        "matchResults": results,
+    })
 
 
 def mock_both_desks(direct_vm, fixture_id, home: int | None = 2, away: int | None = 1, status_a="FT", status_b="FT", home_b=None, away_b=None):
@@ -46,8 +68,8 @@ def mock_both_desks(direct_vm, fixture_id, home: int | None = 2, away: int | Non
         home_b = home
     if away_b is None:
         away_b = away
-    url_a = lib.build_desk_url("desk_a", fixture_id)
-    url_b = lib.build_desk_url("desk_b", fixture_id)
+    url_a = lib.build_desk_url("desk_a", DESK_A_REF)
+    url_b = lib.build_desk_url("desk_b", DESK_B_REF)
     direct_vm.mock_web(re.escape(url_a), {"body": _desk_a_body(status_a, home, away), "status": 200})
     direct_vm.mock_web(re.escape(url_b), {"body": _desk_b_body(status_b, home_b, away_b), "status": 200})
 
@@ -63,7 +85,7 @@ def _open_fixture(direct_vm, direct_deploy, creator, fixture_id="fx-1", kickoff=
     contract = _deploy(direct_deploy)
     direct_vm.sender = creator
     direct_vm.value = lib.CREATE_BOND
-    contract.create_fixture(fixture_id, "Real Madrid", "Bayern Munich", kickoff)
+    contract.create_fixture(fixture_id, "Bayern Munich", "Borussia Dortmund", kickoff, DESK_A_REF, DESK_B_REF)
     direct_vm.value = 0
     return contract, fixture_id, kickoff
 
@@ -97,7 +119,7 @@ class TestCreateFixture:
         direct_vm.sender = direct_alice
         direct_vm.value = lib.CREATE_BOND
         with direct_vm.expect_revert("below_min_lead"):
-            contract.create_fixture("fx-1", "A", "B", ANCHOR_EPOCH + lib.MIN_LEAD - 1)
+            contract.create_fixture("fx-1", "A", "B", ANCHOR_EPOCH + lib.MIN_LEAD - 1, DESK_A_REF, DESK_B_REF)
 
     def test_rejects_home_equals_away(self, direct_vm, direct_deploy, direct_alice):
         direct_vm.warp(_iso(ANCHOR_EPOCH))
@@ -105,14 +127,14 @@ class TestCreateFixture:
         direct_vm.sender = direct_alice
         direct_vm.value = lib.CREATE_BOND
         with direct_vm.expect_revert("home_equals_away"):
-            contract.create_fixture("fx-1", "A", "A", ANCHOR_EPOCH + lib.MIN_LEAD)
+            contract.create_fixture("fx-1", "A", "A", ANCHOR_EPOCH + lib.MIN_LEAD, DESK_A_REF, DESK_B_REF)
 
     def test_rejects_duplicate_fixture_id(self, direct_vm, direct_deploy, direct_alice, direct_bob):
         contract, fixture_id, kickoff = _open_fixture(direct_vm, direct_deploy, direct_alice)
         direct_vm.sender = direct_bob
         direct_vm.value = lib.CREATE_BOND
         with direct_vm.expect_revert("duplicate_fixture"):
-            contract.create_fixture(fixture_id, "C", "D", kickoff + 3600)
+            contract.create_fixture(fixture_id, "C", "D", kickoff + 3600, DESK_A_REF, DESK_B_REF)
 
     def test_rejects_wrong_bond_amount(self, direct_vm, direct_deploy, direct_alice):
         direct_vm.warp(_iso(ANCHOR_EPOCH))
@@ -120,7 +142,7 @@ class TestCreateFixture:
         direct_vm.sender = direct_alice
         direct_vm.value = lib.CREATE_BOND - 1
         with direct_vm.expect_revert("wrong_bond_amount"):
-            contract.create_fixture("fx-1", "A", "B", ANCHOR_EPOCH + lib.MIN_LEAD)
+            contract.create_fixture("fx-1", "A", "B", ANCHOR_EPOCH + lib.MIN_LEAD, DESK_A_REF, DESK_B_REF)
 
     def test_creator_open_cap(self, direct_vm, direct_deploy, direct_alice):
         direct_vm.warp(_iso(ANCHOR_EPOCH))
@@ -128,10 +150,10 @@ class TestCreateFixture:
         direct_vm.sender = direct_alice
         for i in range(lib.MAX_OPEN_PER_CREATOR):
             direct_vm.value = lib.CREATE_BOND
-            contract.create_fixture(f"fx-{i}", "A", "B", ANCHOR_EPOCH + lib.MIN_LEAD + i)
+            contract.create_fixture(f"fx-{i}", "A", "B", ANCHOR_EPOCH + lib.MIN_LEAD + i, DESK_A_REF, DESK_B_REF)
         direct_vm.value = lib.CREATE_BOND
         with direct_vm.expect_revert("creator_cap_reached"):
-            contract.create_fixture("fx-overflow", "A", "B", ANCHOR_EPOCH + lib.MIN_LEAD)
+            contract.create_fixture("fx-overflow", "A", "B", ANCHOR_EPOCH + lib.MIN_LEAD, DESK_A_REF, DESK_B_REF)
 
 
 # ---------------------------------------------------------------------------
@@ -276,10 +298,17 @@ class TestResolve:
         direct_vm.sender = direct_bob
         direct_vm.value = lib.MIN_BET
         contract.place_bet(fixture_id, "AWAY")
-        url_a = lib.build_desk_url("desk_a", fixture_id)
-        url_b = lib.build_desk_url("desk_b", fixture_id)
+        url_a = lib.build_desk_url("desk_a", DESK_A_REF)
+        url_b = lib.build_desk_url("desk_b", DESK_B_REF)
         direct_vm.mock_web(re.escape(url_a), {"body": json.dumps({"events": [{"strStatus": "Match Finished", "intHomeScore": "0", "intAwayScore": "3", "strTimestamp": "2030-01-01T20:00:00Z"}]}), "status": 200})
-        direct_vm.mock_web(re.escape(url_b), {"body": json.dumps({"matchStatus": "FT", "homeGoals": 0, "awayGoals": 3, "lastUpdate": "2030-01-01T20:07:00Z"}), "status": 200})
+        direct_vm.mock_web(re.escape(url_b), {"body": json.dumps({
+            "matchID": int(DESK_B_REF),
+            "matchIsFinished": True,
+            # Deliberately a different asof, and a different envelope shape
+            # from desk_a's -- neither may affect the comparison.
+            "lastUpdateDateTime": "2030-01-01T20:07:00Z",
+            "matchResults": [{"pointsTeam1": 0, "pointsTeam2": 3, "resultTypeKind": "After90Minutes"}],
+        }), "status": 200})
         direct_vm.warp(_iso(kickoff + lib.RESOLVE_EARLIEST_OFFSET + 10))
         direct_vm.sender = direct_charlie
         direct_vm.value = lib.RESOLVE_BOND
@@ -697,7 +726,7 @@ class TestViews:
         direct_vm.sender = direct_alice
         for i in range(5):
             direct_vm.value = lib.CREATE_BOND
-            contract.create_fixture(f"fx-{i}", "A", "B", ANCHOR_EPOCH + lib.MIN_LEAD + i)
+            contract.create_fixture(f"fx-{i}", "A", "B", ANCHOR_EPOCH + lib.MIN_LEAD + i, DESK_A_REF, DESK_B_REF)
         page1 = contract.get_board(0, 2, "")
         assert len(page1["rows"]) == 2
         page2 = contract.get_board(page1["next_cursor"], 2, "")

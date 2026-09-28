@@ -138,13 +138,43 @@ before/after.
 
 Two locked desks, JSON only (`html_table: false` for both in this V1),
 fixed host + path per desk -- `build_desk_url` never accepts a
-caller-supplied URL, only a `fixture_id`. Both desks are assumed to share
-a canonical `fixture_id` space for this V1 template, the same
-simplification a prior project on this account made for cross-exchange
-symbol conventions. Before a real mainnet cutover, verify each desk's
-exact live response schema against its own current API docs -- the
-parsers in `whistle_lib.parse_response_body` were written from each
-desk's documented shape, not a live fetch from inside this build.
+caller-supplied URL, only that desk's own publisher-side reference.
+
+**The desks do not share an id space, and a fixture names each one
+separately.** `desk_a` is keyed by TheSportsDB's `idEvent`, `desk_b` by
+OpenLigaDB's `matchID`; the same integer denotes unrelated matches on the
+two services. Both references are supplied once at `create_fixture`,
+validated as bare digit strings (`is_valid_desk_ref`, max
+`MAX_DESK_REF_LEN`) so neither can smuggle a path, query or second host
+into an otherwise locked URL, and frozen for the fixture's life.
+`get_fixture` and `get_constitution` both expose them, so anyone can
+re-fetch both desks by hand and audit a verdict independently.
+
+**Competition.** OpenLigaDB carries German league football only, so the
+Bundesliga (`COMPETITION = "BL1"`) is the overlap with TheSportsDB. A
+competition only one desk covers could never reach two matching FT
+scorelines, and would settle every fixture INCONCLUSIVE.
+
+**Response shapes are taken from live fetches, not documentation.** Both
+were captured from the real endpoints and are pinned by tests:
+
+| | `desk_a` (TheSportsDB) | `desk_b` (OpenLigaDB) |
+|---|---|---|
+| Completion | `strStatus` is **null** on the free tier even for long-finished matches, so FT is inferred from a full integer scoreline with `strPostponed == "no"`; an explicit status is honoured when present | boolean `matchIsFinished` |
+| Goals | `intHomeScore` / `intAwayScore` (strings) | `matchResults[]`, the entry whose `resultTypeKind` is `After90Minutes` -> `pointsTeam1` / `pointsTeam2` |
+| `asof` | `strTimestamp` | `lastUpdateDateTime` |
+
+Inferring desk_a's completion from a scoreline is safe because it is
+never the only evidence: `resolve()` can only run 105+ minutes after
+kickoff, and desk_b must **independently** report the match finished for
+the fixture to settle decisively. `desk_b`'s `After90Minutes` selection
+is what makes `RESULT_TYPE = "FT_90"` literally true -- the extra-time
+and penalties entries are explicitly excluded, so a shootout can never
+be read as the full-time scoreline.
+
+A reference that does not exist on OpenLigaDB answers with **plain text**
+(`No match with Id ... found!`), not JSON, which `parse_response_body`
+reports as `decode_fail` -- unusable, never decisive.
 
 ## Payout math (`whistle_lib.compute_claim_payout`)
 

@@ -1,6 +1,6 @@
 # Integration tests (live Studio Next)
 
-`tests/direct/` (94 tests, all green, no network needed) covers every
+`tests/direct/` (117 tests, all green, no network needed) covers every
 deterministic guard and state transition, plus the full leader/validator
 equivalence comparator as pure-Python unit tests. It cannot prove two
 things `gltest` direct-mode structurally cannot exercise:

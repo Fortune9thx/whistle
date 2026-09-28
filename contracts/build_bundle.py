@@ -9,7 +9,9 @@ can be unit-tested directly with plain pytest, with no genlayer import
 and no GenVM sandbox involved. Always lint/test the BUNDLED output, not
 the two-file dev version, since the bundle is what actually ships.
 """
+import io
 import re
+import tokenize
 from pathlib import Path
 
 ROOT = Path(__file__).parent
@@ -19,6 +21,46 @@ OUT_DIR = ROOT / "build"
 OUT_PATH = OUT_DIR / "Whistle.deploy.py"
 
 DEPENDS_RE = re.compile(r'^#\s*\{\s*"Depends"')
+
+
+def strip_comments(text: str) -> str:
+    """Drop comment tokens from the bundled artifact.
+
+    The two source files carry the explanatory comments -- why each desk
+    is parsed the way it is, which GenVM behaviours forced which choice --
+    and those are what a reader should review. Repeating all of it inside
+    the single deployed file costs several KB against a hard 52,224-byte
+    GenVM deploy ceiling and buys nothing on-chain, so the artifact ships
+    without them. Docstrings are kept: they are real objects, not
+    comments, and removing them could change behaviour.
+
+    Tokenising (rather than matching '#' per line) is what makes this
+    safe -- a '#' inside a string literal is not a comment.
+    """
+    out = []
+    prev_end = (1, 0)
+    prev_type = None
+    for tok in tokenize.generate_tokens(io.StringIO(text).readline):
+        tok_type, tok_str, start, end, _ = tok
+        if tok_type == tokenize.COMMENT:
+            prev_end = end
+            prev_type = tok_type
+            continue
+        # A NL that only terminated a now-removed comment would leave a
+        # blank line behind; drop it so stripping cannot grow the file.
+        if tok_type == tokenize.NL and prev_type == tokenize.COMMENT:
+            prev_end = end
+            prev_type = tok_type
+            continue
+        if start[0] > prev_end[0]:
+            out.append("\n" * (start[0] - prev_end[0]))
+            out.append(" " * start[1])
+        elif start[1] > prev_end[1]:
+            out.append(" " * (start[1] - prev_end[1]))
+        out.append(tok_str)
+        prev_end = end
+        prev_type = tok_type
+    return "".join(out)
 
 
 def strip_lib_module(text: str) -> str:
@@ -72,15 +114,26 @@ def main() -> None:
         "",
     ])
 
+    # The Depends header is a runner directive, not a comment to strip.
+    stripped_body = strip_comments(bundled.split("\n", 1)[1])
+    bundled = header_line + "\n" + stripped_body.strip("\n") + "\n"
+
+    compile(bundled, str(OUT_PATH), "exec")
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     OUT_PATH.write_text(bundled, encoding="utf-8", newline="\n")
     size = len(bundled.encode("utf-8"))
     print(f"Wrote {OUT_PATH} ({size} bytes)")
     limit = 52_224
     if size > limit:
-        print(f"WARNING: {size} bytes exceeds the {limit}-byte deploy-size ceiling")
-    else:
-        print(f"OK: {size}/{limit} bytes ({size / limit:.1%} of ceiling)")
+        # Hard failure, not a warning: a bundle over the ceiling cannot be
+        # deployed at all, so letting the build (and CI) pass would just
+        # defer the discovery to a gas-costing deploy attempt.
+        raise SystemExit(
+            f"FAIL: {size} bytes exceeds the {limit}-byte GenVM deploy ceiling "
+            f"by {size - limit}"
+        )
+    print(f"OK: {size}/{limit} bytes ({size / limit:.1%} of ceiling)")
 
 
 if __name__ == "__main__":

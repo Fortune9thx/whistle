@@ -11,7 +11,7 @@ const ITEMS: [string, string][] = [
   ],
   [
     "Why only one factory contract?",
-    "Every UCL_LP fixture lives in one deployed contract -- no per-match redeploy, no fragmented liquidity.",
+    "Every Bundesliga fixture lives in one deployed contract -- no per-match redeploy, no fragmented liquidity.",
   ],
   [
     "What if nobody resolves the fixture?",
