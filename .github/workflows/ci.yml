@@ -15,8 +15,19 @@ jobs:
           python-version: "3.12"
 
       - name: Install pinned toolchain
+        # pyright and nodeenv are pinned because genvm-linter only bounds
+        # pyright from below. Python 3.12 no longer ships setuptools, which
+        # nodeenv < 1.9 requires, so leaving either open makes pip backtrack
+        # through every pyright release looking for a combination that needs
+        # it -- and give up with `resolution-too-deep`. These are the
+        # versions the toolchain resolves to when it resolves at all.
         run: |
-          pip install --pre genlayer-test==0.30.0rc2 genvm-linter==0.11.1rc2 pytest
+          pip install --pre \
+            genlayer-test==0.30.0rc2 \
+            genvm-linter==0.11.1rc2 \
+            pyright==1.1.414 \
+            nodeenv==1.11.0 \
+            pytest==9.1.1
 
       - name: Build deploy bundle
         # Fails outright if the bundle exceeds the 52,224-byte GenVM
