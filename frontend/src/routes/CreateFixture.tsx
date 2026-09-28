@@ -1,18 +1,32 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as api from "../lib/whistle/api";
-import { useIsLive } from "../lib/whistle/NetworkStatusProvider";
-import { useWallet } from "../lib/whistle/WalletProvider";
+import { useIsLive } from "../lib/whistle/networkStatusContext";
+import { useWallet } from "../lib/whistle/walletContext";
+import { useNow } from "../lib/whistle/useNow";
+import { useConfig } from "../lib/whistle/useConfig";
+import { formatGen } from "../lib/whistle/format";
 import { FixtureTicket } from "../components/FixtureTicket";
 import type { Fixture } from "../lib/whistle/types";
 
-const CREATE_BOND_GEN = "0.05";
-const MIN_LEAD_HOURS = 2;
+// Fallbacks, used only until get_config() lands. The live on-chain
+// values always take precedence -- see useConfig().
+const CREATE_BOND_FALLBACK_WEI = 5n * 10n ** 16n;
+const MIN_LEAD_FALLBACK_SECONDS = 7200;
 
 export function CreateFixture() {
   const isLive = useIsLive();
   const { address, provider } = useWallet();
   const navigate = useNavigate();
+  const config = useConfig();
+  // Hooks run before any early return; the clock ticks so the minimum
+  // selectable kickoff stays honest on a page left open.
+  const now = useNow(30_000);
+
+  const createBondWei = config ? BigInt(config.create_bond_wei) : CREATE_BOND_FALLBACK_WEI;
+  const minLeadSeconds = config?.min_lead_seconds ?? MIN_LEAD_FALLBACK_SECONDS;
+  const createBondGen = formatGen(createBondWei);
+  const minLeadHours = Math.round((minLeadSeconds / 3600) * 10) / 10;
 
   const [fixtureId, setFixtureId] = useState("");
   const [home, setHome] = useState("");
@@ -31,10 +45,10 @@ export function CreateFixture() {
       home: home || "Home",
       away: away || "Away",
       state: "OPEN",
-      kickoff_unix: kickoffUnix ?? Math.floor(Date.now() / 1000) + MIN_LEAD_HOURS * 3600,
+      kickoff_unix: kickoffUnix ?? now + minLeadSeconds,
       pool_by_outcome: { HOME: "0", DRAW: "0", AWAY: "0" } as any,
     };
-  }, [fixtureId, home, away, kickoff]);
+  }, [fixtureId, home, away, kickoff, now, minLeadSeconds]);
 
   async function submit() {
     if (!ctx || !fixtureId || !home || !away || !kickoff) return;
@@ -42,7 +56,7 @@ export function CreateFixture() {
     setError(null);
     try {
       const kickoffUnix = Math.floor(new Date(kickoff).getTime() / 1000);
-      await api.createFixture(ctx, fixtureId, home, away, kickoffUnix, 5n * 10n ** 16n);
+      await api.createFixture(ctx, fixtureId, home, away, kickoffUnix, createBondWei);
       navigate(`/app/f/${fixtureId}`);
     } catch (e: any) {
       setError(e?.message ?? String(e));
@@ -55,15 +69,15 @@ export function CreateFixture() {
     return <div className="empty-state">No live contract to write to yet.</div>;
   }
 
-  const minKickoff = new Date(Date.now() + (MIN_LEAD_HOURS * 3600 + 60) * 1000).toISOString().slice(0, 16);
+  const minKickoff = new Date((now + minLeadSeconds + 60) * 1000).toISOString().slice(0, 16);
 
   return (
     <div>
       <div className="section-eyebrow" style={{ textAlign: "left" }}>New fixture</div>
       <h1 style={{ fontSize: 26, margin: "0 0 8px", letterSpacing: "-0.01em" }}>Lock in a fixture</h1>
       <p className="mute" style={{ fontSize: 14, marginBottom: 32, maxWidth: 520 }}>
-        Kickoff must be at least {MIN_LEAD_HOURS} hours out. Posting this
-        fixture requires a {CREATE_BOND_GEN} GEN create bond, slashed to
+        Kickoff must be at least {minLeadHours} hours out. Posting this
+        fixture requires a {createBondGen} GEN create bond, slashed to
         treasury only if it reaches kickoff with zero bets.
       </p>
 
@@ -93,7 +107,7 @@ export function CreateFixture() {
           {error && <p className="pill pill-down" style={{ marginTop: 4, marginBottom: 16 }}>{error}</p>}
 
           <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", marginTop: 8 }} disabled={!ctx || busy} onClick={submit}>
-            {busy ? "waiting for consensus..." : `Create (${CREATE_BOND_GEN} GEN bond)`}
+            {busy ? "waiting for consensus..." : `Create (${createBondGen} GEN bond)`}
           </button>
         </div>
 
@@ -104,11 +118,11 @@ export function CreateFixture() {
           <div className="card create-econ-card">
             <div className="create-econ-row">
               <span className="mute">Create bond</span>
-              <span className="mono">{CREATE_BOND_GEN} GEN</span>
+              <span className="mono">{createBondGen} GEN</span>
             </div>
             <div className="create-econ-row">
               <span className="mute">Min lead time</span>
-              <span className="mono">{MIN_LEAD_HOURS}h</span>
+              <span className="mono">{minLeadHours}h</span>
             </div>
             <div className="create-econ-row">
               <span className="mute">Bond slashed if</span>

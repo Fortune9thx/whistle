@@ -47,7 +47,7 @@ Studio Next / Studio Devnet, chain id **61997**, `https://studio-dev.genlayer.co
 
 - **A cron job or off-chain oracle as ground truth.** Every scoreline is fetched and cross-checked live, on-chain, by GenVM consensus at resolve time -- never pre-computed and merely attested.
 - **Raw-HTML `strict_eq` on either desk's response.** Both locked desks are JSON; `asof`/markup/whitespace are explicitly excluded from the comparison so cosmetic drift between two honest fetches never causes a false reject.
-- **The model deciding 1X2.** It is only ever asked to extract structured per-desk facts; `derive_1x2` is a pure, auditable, three-line function in `whistle_lib.py`.
+- **Any model deciding 1X2 -- or appearing in this contract at all.** There is no LLM call anywhere in WHISTLE. Each validator's own `gl.nondet.web.get` fetch supplies the raw desk envelopes, deterministic Python parses them, and `derive_1x2` -- a pure, auditable, three-line function in `whistle_lib.py` -- maps the agreed scoreline to a verdict.
 - **One contract per match.** A single factory-style contract holds every `UCL_LP` fixture -- no per-match redeploy.
 - **A 0% "no closer" design.** Every non-terminal path (stalled appeal, unresolved fixture, zero-bet fixture) has an explicit, permissionless escape hatch; nothing can get stuck forever waiting on one specific actor.
 

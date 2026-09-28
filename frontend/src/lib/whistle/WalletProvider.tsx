@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   connectWallet,
   getBalance,
@@ -7,17 +7,7 @@ import {
   subscribeWallets,
   type Eip1193Provider,
 } from "./wallet";
-
-interface WalletState {
-  hasWallet: boolean;
-  address: string | null;
-  balanceWei: bigint;
-  connecting: boolean;
-  connect: () => Promise<void>;
-  provider: Eip1193Provider | null;
-}
-
-const WalletContext = createContext<WalletState | null>(null);
+import { WalletContext } from "./walletContext";
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [walletsSeen, setWalletsSeen] = useState(hasWallet());
@@ -58,10 +48,4 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       {children}
     </WalletContext.Provider>
   );
-}
-
-export function useWallet(): WalletState {
-  const ctx = useContext(WalletContext);
-  if (!ctx) throw new Error("useWallet must be used inside WalletProvider");
-  return ctx;
 }

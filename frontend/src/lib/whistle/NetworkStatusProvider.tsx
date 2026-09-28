@@ -1,16 +1,14 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { CONTRACT_ADDRESS, probeLiveness, type LivenessState } from "./network";
-
-const NetworkStatusContext = createContext<LivenessState>("no_address");
+import { NetworkStatusContext } from "./networkStatusContext";
 
 export function NetworkStatusProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<LivenessState>(CONTRACT_ADDRESS ? "checking" : "no_address");
 
   useEffect(() => {
-    if (!CONTRACT_ADDRESS) {
-      setState("no_address");
-      return;
-    }
+    // With no configured address the initial state is already
+    // "no_address" -- nothing to probe, and nothing to set.
+    if (!CONTRACT_ADDRESS) return;
     let cancelled = false;
     const check = () => probeLiveness(CONTRACT_ADDRESS).then((s) => !cancelled && setState(s));
     check();
@@ -22,12 +20,4 @@ export function NetworkStatusProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return <NetworkStatusContext.Provider value={state}>{children}</NetworkStatusContext.Provider>;
-}
-
-export function useLivenessState(): LivenessState {
-  return useContext(NetworkStatusContext);
-}
-
-export function useIsLive(): boolean {
-  return useLivenessState() === "live";
 }

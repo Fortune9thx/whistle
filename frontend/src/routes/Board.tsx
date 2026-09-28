@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getBoard } from "../lib/whistle/api";
-import { useIsLive } from "../lib/whistle/NetworkStatusProvider";
+import { useIsLive } from "../lib/whistle/networkStatusContext";
 import { formatGen, formatKickoff } from "../lib/whistle/format";
 import type { Fixture } from "../lib/whistle/types";
 
@@ -15,10 +15,13 @@ export function Board() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isLive) {
-      setRows([]);
-      return;
-    }
+    // Not live: the component renders its empty state instead of `rows`,
+    // and a flip back to live refetches -- so there is nothing to clear.
+    if (!isLive) return;
+    // Entering the loading state is the start of an external fetch, which
+    // is exactly what an effect is for -- the rule's "derive it during
+    // render instead" advice does not apply to a request's own lifecycle.
+    // oxlint-disable-next-line react/set-state-in-effect
     setLoading(true);
     setError(null);
     getBoard(0, 50, filter)

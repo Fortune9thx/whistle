@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import * as api from "../lib/whistle/api";
-import { useIsLive } from "../lib/whistle/NetworkStatusProvider";
-import { useWallet } from "../lib/whistle/WalletProvider";
+import { useIsLive } from "../lib/whistle/networkStatusContext";
+import { useWallet } from "../lib/whistle/walletContext";
 import { formatGen } from "../lib/whistle/format";
 import type { Position } from "../lib/whistle/types";
 

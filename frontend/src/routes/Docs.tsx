@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import * as api from "../lib/whistle/api";
-import { useIsLive } from "../lib/whistle/NetworkStatusProvider";
+import { useIsLive } from "../lib/whistle/networkStatusContext";
 import { formatGen } from "../lib/whistle/format";
 import type { Config } from "../lib/whistle/types";
 

@@ -1,19 +1,28 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import * as api from "../lib/whistle/api";
-import { useIsLive } from "../lib/whistle/NetworkStatusProvider";
-import { useWallet } from "../lib/whistle/WalletProvider";
+import { useIsLive } from "../lib/whistle/networkStatusContext";
+import { useWallet } from "../lib/whistle/walletContext";
+import { useNow } from "../lib/whistle/useNow";
+import { useConfig } from "../lib/whistle/useConfig";
 import { formatGen, genToWei, shortAddr } from "../lib/whistle/format";
 import { FixtureTicket } from "../components/FixtureTicket";
 import type { Fixture } from "../lib/whistle/types";
 
 const OUTCOMES = ["HOME", "DRAW", "AWAY"] as const;
 const GROUNDS = ["SCORE", "STATUS", "FIXTURE", "REVISED"];
+// Used only until get_config() lands; the live value always wins.
+const RESOLVE_BOND_FALLBACK_WEI = 2n * 10n ** 16n;
 
 export function FixturePage() {
   const { id } = useParams<{ id: string }>();
   const isLive = useIsLive();
   const { address, provider } = useWallet();
+  const config = useConfig();
+  // Hooks must run before any early return, so the clock is read here
+  // and the time-derived gates below re-evaluate every tick.
+  const now = useNow();
+  const resolveBondWei = config ? BigInt(config.resolve_bond_wei) : RESOLVE_BOND_FALLBACK_WEI;
   const [fixture, setFixture] = useState<Fixture | null>(null);
   const [scoreline, setScoreline] = useState<Record<string, unknown> | null>(null);
   const [tab, setTab] = useState<"ticket" | "evidence">("ticket");
@@ -55,7 +64,6 @@ export function FixturePage() {
     return <div className="empty-state">Loading fixture...</div>;
   }
 
-  const now = Math.floor(Date.now() / 1000);
   const canBet = fixture.state === "OPEN" && now < fixture.kickoff_unix;
   const canResolve = fixture.state === "OPEN" && now >= fixture.kickoff_unix && Number(fixture.total_pool) > 0;
   const canFinalize = fixture.state === "PENDING";
@@ -124,7 +132,7 @@ export function FixturePage() {
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {canResolve && ctx && (
-                <ActionButton label="resolve" busy={busy} onClick={() => run("resolve", () => api.resolveFixture(ctx, id, 2n * 10n ** 16n))} />
+                <ActionButton label="resolve" busy={busy} onClick={() => run("resolve", () => api.resolveFixture(ctx, id, resolveBondWei))} />
               )}
               {canFinalize && (
                 <ActionButton label="finalize" busy={busy} onClick={() => run("finalize", () => api.finalizeFixture(ctx!, id))} disabled={!ctx} />
@@ -137,7 +145,7 @@ export function FixturePage() {
                 />
               )}
               {canReAdjudicate && ctx && (
-                <ActionButton label="re_adjudicate" busy={busy} onClick={() => run("re_adjudicate", () => api.reAdjudicate(ctx, id, 2n * 10n ** 16n))} />
+                <ActionButton label="re_adjudicate" busy={busy} onClick={() => run("re_adjudicate", () => api.reAdjudicate(ctx, id, resolveBondWei))} />
               )}
               {canLapse && (
                 <ActionButton label="lapse_appeal" busy={busy} onClick={() => run("lapse_appeal", () => api.lapseAppeal(ctx!, id))} disabled={!ctx} />

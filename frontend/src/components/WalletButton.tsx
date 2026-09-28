@@ -1,4 +1,4 @@
-import { useWallet } from "../lib/whistle/WalletProvider";
+import { useWallet } from "../lib/whistle/walletContext";
 import { formatGen, shortAddr } from "../lib/whistle/format";
 
 export function WalletButton() {

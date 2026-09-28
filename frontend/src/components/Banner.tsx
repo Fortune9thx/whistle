@@ -1,5 +1,5 @@
 import { CONTRACT_ADDRESS, explorerAddressUrl } from "../lib/whistle/network";
-import { useLivenessState } from "../lib/whistle/NetworkStatusProvider";
+import { useLivenessState } from "../lib/whistle/networkStatusContext";
 
 export function Banner() {
   const state = useLivenessState();
