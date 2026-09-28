@@ -46,8 +46,23 @@ jobs:
           PYTHONIOENCODING=utf-8 genvm-lint check contracts/build/Whistle.deploy.py
 
       - name: Typecheck bundled contract
+        # genvm-lint typecheck cannot be gated on its exit code or its
+        # summary line: it labels every diagnostic severity "?", always
+        # prints "0 error(s), 0 warning(s)", and exits non-zero whenever
+        # any diagnostic exists at all. Since pyright emits one for every
+        # GenVM Annotated type (u256, Address) it believes is "not
+        # callable" -- a false positive against the SDK's own
+        # annotations -- that is always. So gate on the only thing that
+        # carries signal: no diagnostic OTHER than that known class.
         run: |
-          PYTHONIOENCODING=utf-8 genvm-lint typecheck contracts/build/Whistle.deploy.py
+          PYTHONIOENCODING=utf-8 genvm-lint typecheck \
+            contracts/build/Whistle.deploy.py 2>&1 | tee typecheck.log || true
+          if grep -E '^Whistle\.deploy\.py:' typecheck.log \
+               | grep -vE 'Object of type "Annotated" is not callable'; then
+            echo "::error::genvm-lint typecheck reported the diagnostics above"
+            exit 1
+          fi
+          echo "No typecheck diagnostics beyond the known Annotated false positives."
 
       - name: Run direct-mode tests
         run: python -m pytest tests/direct -q

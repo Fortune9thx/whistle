@@ -184,7 +184,7 @@ Also fixed in this pass:
   the 52,224-byte GenVM deploy ceiling, so CI would have passed an
   undeployable artifact. It now fails, and strips comments from the
   generated file (sources keep them), which also bought back headroom:
-  48,495 bytes against 49,813 before.
+  48,603 bytes against 49,813 before.
 - CI never ran `genvm-lint typecheck`, never ran the frontend linter,
   used `npm install` rather than `npm ci`, and never checked that the
   committed bundle matches what the source builds. All four are now
@@ -192,3 +192,34 @@ Also fixed in this pass:
 
 These changes alter contract logic and storage, so they require a
 redeploy; see `docs/STATUS.md`.
+
+### A regression this pass introduced, and caught
+
+Stripping comments from the generated artifact (above) also stripped
+`# type: ignore[misc]` from `evaluate_sources`, which is a pragma a tool
+acts on rather than prose for a reader. `genvm-lint typecheck` then
+reported a real `"None" is not iterable` against the bundle -- and the
+first attempt at a CI gate did not catch it, because the tool's own
+summary line is not usable as a signal:
+
+- it labels every diagnostic severity `?`,
+- it always prints `0 error(s), 0 warning(s)` regardless of what it
+  found, and
+- it exits non-zero whenever any diagnostic exists at all, which is
+  always, since pyright emits one for every GenVM `Annotated` type
+  (`u256`, `Address`) it believes is "not callable".
+
+So the earlier "typecheck: 0 errors, 0 warnings" claim in this repo was
+never evidence of anything. The gate now fails on any diagnostic other
+than that known false-positive class, which is the only part of the
+output that carries signal. It was tested both ways: it passes on the
+current bundle and fails on a deliberately introduced diagnostic.
+
+Both underlying problems are fixed: the bundler preserves pragma
+comments (`type:`, `noqa`, `pyright:`, `pylint:`, `ruff:`, `mypy:`), and
+`evaluate_sources` narrows its two reports explicitly so no suppression
+is needed at all.
+
+Note that `genvm-lint typecheck` runs pyright permissively -- it does not
+report a `-> int` function returning `None`, for instance -- so it should
+be read as a narrow check, not a full typecheck.

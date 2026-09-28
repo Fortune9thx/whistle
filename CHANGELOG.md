@@ -23,7 +23,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `COMPETITION` constant.
 - `contracts/build_bundle.py` now fails, rather than warning, when the
   bundle exceeds the 52,224-byte GenVM deploy ceiling, and strips
-  comments from the generated artifact (sources keep them): 48,495
+  comments from the generated artifact (sources keep them): 48,603
   bytes, down from 49,813.
 - Frontend: bond sizes and the minimum kickoff lead are read from the
   live `get_config()` instead of being duplicated as literals; the

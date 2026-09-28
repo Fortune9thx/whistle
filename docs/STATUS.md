@@ -5,7 +5,7 @@
 | Contract tests | 117/117 passing (68 pure-Python `whistle_lib` + 49 `gltest` direct-mode) |
 | `genvm-lint check` | passing, 3 checks |
 | `genvm-lint typecheck` | 0 errors, 0 warnings |
-| Bundle size | 48,495 / 52,224 bytes (92.9%) |
+| Bundle size | 48,603 / 52,224 bytes (93.1%) |
 | GitHub | live -- [github.com/Fortune9thx/whistle](https://github.com/Fortune9thx/whistle) |
 | Vercel | live -- [whistle-brown-ten.vercel.app](https://whistle-brown-ten.vercel.app) |
 | Studio Next deploy | `0xB7c5Ec5dc5d7A006Ef5dDE28E316E6A0586D4D36` -- live, but **superseded by pending redeploy** (see below) |
@@ -101,8 +101,8 @@ against captured live responses, and the competition is the Bundesliga
 storage, so it **requires a redeploy** -- a live GenVM contract cannot be
 patched in place.
 
-Bundle ready to deploy: `sha256:e475c7f5f31746551ceab20a74e3a42fa51c75e6d26c4eef7689232857ab45ba`,
-48,495 / 52,224 bytes, `genvm-lint check` + `typecheck` clean,
+Bundle ready to deploy: `sha256:d589ed40b32e33cec3046221d369485db0b34abe6d455e0b5e36a8d5a877e3fe`,
+48,603 / 52,224 bytes, `genvm-lint check` + `typecheck` clean,
 117/117 tests green, and the free `getContractSchemaForCode` probe
 against Studio Next resolves it with `create_fixture` carrying
 `desk_a_ref`/`desk_b_ref`.

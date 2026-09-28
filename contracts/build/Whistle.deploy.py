@@ -686,7 +686,13 @@ def evaluate_sources(sources: dict) -> tuple[str, dict | None]:
 
 
 
-    (ha, aa), (hb, ab) = reports
+    first, second = reports
+
+    if first is None or second is None:
+
+        return "MISSING", None
+
+    (ha, aa), (hb, ab) = first, second
 
     if ha != hb or aa != ab:
 

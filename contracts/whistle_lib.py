@@ -414,7 +414,10 @@ def evaluate_sources(sources: dict) -> tuple[str, dict | None]:
             return "PRE", None
         return "MISSING", None
 
-    (ha, aa), (hb, ab) = reports  # type: ignore[misc]
+    first, second = reports
+    if first is None or second is None:
+        return "MISSING", None
+    (ha, aa), (hb, ab) = first, second
     if ha != hb or aa != ab:
         return "CONFLICT", None
     return "CLEAR", {"home": ha, "away": aa, "status": "FT"}

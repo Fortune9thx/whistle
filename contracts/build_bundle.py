@@ -22,6 +22,10 @@ OUT_PATH = OUT_DIR / "Whistle.deploy.py"
 
 DEPENDS_RE = re.compile(r'^#\s*\{\s*"Depends"')
 
+# Comments a tool acts on, not prose for a reader. Stripping these would
+# silently change how the artifact typechecks or lints, so they stay.
+PRAGMA_RE = re.compile(r"^#\s*(type:|noqa|pyright:|pylint:|ruff:|mypy:)")
+
 
 def strip_comments(text: str) -> str:
     """Drop comment tokens from the bundled artifact.
@@ -42,7 +46,7 @@ def strip_comments(text: str) -> str:
     prev_type = None
     for tok in tokenize.generate_tokens(io.StringIO(text).readline):
         tok_type, tok_str, start, end, _ = tok
-        if tok_type == tokenize.COMMENT:
+        if tok_type == tokenize.COMMENT and not PRAGMA_RE.match(tok_str.strip()):
             prev_end = end
             prev_type = tok_type
             continue
