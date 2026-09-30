@@ -70,15 +70,23 @@ class _Recipient:
 
 
 class EventFixtureCreated(gl.chain.Event):
-    def __init__(self, fixture_id: str, creator: Address, kickoff_unix: u256, /): ...
+    # NOTE: gl.chain.Event binds indexed fields by SORTED PARAM NAME
+    # against POSITIONAL VALUE ORDER (Event._do_init does
+    # `for name, val in zip(sorted(names), args)`). Declaring params
+    # out of alphabetical order silently swaps values into the wrong
+    # named fields on chain -- invisible to genvm-lint (warns only) and
+    # to gltest direct-mode (doesn't check binding at all). Every
+    # multi-field event below is declared alphabetically for this
+    # reason; call sites pass values in the same alphabetical order.
+    def __init__(self, creator: Address, fixture_id: str, kickoff_unix: u256, /): ...
 
 
 class EventBetPlaced(gl.chain.Event):
-    def __init__(self, fixture_id: str, bettor: Address, outcome: str, /): ...
+    def __init__(self, bettor: Address, fixture_id: str, outcome: str, /): ...
 
 
 class EventResolved(gl.chain.Event):
-    def __init__(self, fixture_id: str, verdict: str, code: str, /): ...
+    def __init__(self, code: str, fixture_id: str, verdict: str, /): ...
 
 
 class EventFinalized(gl.chain.Event):
@@ -86,7 +94,7 @@ class EventFinalized(gl.chain.Event):
 
 
 class EventAppealed(gl.chain.Event):
-    def __init__(self, fixture_id: str, appellant: Address, ground: str, /): ...
+    def __init__(self, appellant: Address, fixture_id: str, ground: str, /): ...
 
 
 class EventLapsedAppeal(gl.chain.Event):
@@ -106,7 +114,7 @@ class EventRecovered(gl.chain.Event):
 
 
 class Claimed(gl.chain.Event):
-    def __init__(self, fixture_id: str, claimant: Address, amount: u256, /): ...
+    def __init__(self, amount: u256, claimant: Address, fixture_id: str, /): ...
 
 
 class Whistle(gl.contract.Contract):
@@ -232,7 +240,7 @@ class Whistle(gl.contract.Contract):
         self.creator_open_count[creator] = u256(open_count + 1)
         self.all_fixture_ids.append(fixture_id)
 
-        EventFixtureCreated(fixture_id, gl.message.sender_address, kickoff_unix).emit()
+        EventFixtureCreated(gl.message.sender_address, fixture_id, kickoff_unix).emit()
         return fixture_id
 
     # ------------------------------------------------------------------
@@ -268,7 +276,7 @@ class Whistle(gl.contract.Contract):
         if existing == "":
             self.user_fixture_ids.get_or_insert_default(bettor).append(fixture_id)
 
-        EventBetPlaced(fixture_id, gl.message.sender_address, outcome).emit()
+        EventBetPlaced(gl.message.sender_address, fixture_id, outcome).emit()
         return "ok"
 
     # ------------------------------------------------------------------
@@ -343,7 +351,7 @@ class Whistle(gl.contract.Contract):
         self.fixture_resolver[fixture_id] = resolver
         self.fixture_state[fixture_id] = "PENDING"
         self.fixture_last_state_change[fixture_id] = u256(now_ts)
-        EventResolved(fixture_id, verdict, code).emit()
+        EventResolved(code, fixture_id, verdict).emit()
         return verdict
 
     @gl.public.write.payable
@@ -402,7 +410,7 @@ class Whistle(gl.contract.Contract):
         self.fixture_appeal_json[fixture_id] = json.dumps(appeal_rec)
         self.fixture_state[fixture_id] = "APPEALED"
         self.fixture_last_state_change[fixture_id] = u256(now_ts)
-        EventAppealed(fixture_id, gl.message.sender_address, ground).emit()
+        EventAppealed(gl.message.sender_address, fixture_id, ground).emit()
 
     @gl.public.write.payable
     def re_adjudicate(self, fixture_id: str) -> str:
@@ -636,7 +644,7 @@ class Whistle(gl.contract.Contract):
         self.position_claimed[pos_key] = u256(1)
         if payout > 0:
             _Recipient(gl.message.sender_address).emit_transfer(value=u256(payout))
-        Claimed(fixture_id, gl.message.sender_address, u256(payout)).emit()
+        Claimed(u256(payout), gl.message.sender_address, fixture_id).emit()
         return u256(payout)
 
     # ------------------------------------------------------------------

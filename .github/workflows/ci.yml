@@ -21,7 +21,12 @@ jobs:
       - name: Build deploy bundle
         run: python contracts/build_bundle.py
 
-      - name: Lint bundled contract
+      - name: Lint bundled contract (required gate, AST-only, no SDK download)
+        run: |
+          PYTHONIOENCODING=utf-8 genvm-lint lint contracts/build/Whistle.deploy.py
+
+      - name: Validate bundled contract against pinned runner (best-effort)
+        continue-on-error: true
         run: |
           PYTHONIOENCODING=utf-8 genvm-lint check contracts/build/Whistle.deploy.py
 

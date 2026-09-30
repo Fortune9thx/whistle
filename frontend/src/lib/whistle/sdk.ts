@@ -124,8 +124,14 @@ export async function submitWrite(
 
   const tx = receipt ?? (await client.getTransaction({ hash }).catch(() => null));
   const resultName = (tx as any)?.txExecutionResultName as string | undefined;
-  if (resultName && resultName !== "FINISHED_WITH_RETURN") {
-    throw new Error(`Transaction did not succeed: ${resultName}`);
+  // Whitelist, not blacklist: a missing/unrecognized resultName (a failed
+  // receipt fetch, a CANCELED/queued-forever tx with no execution result at
+  // all, an unexpected receipt shape) must fail the same as a known-bad
+  // one -- `if (resultName && resultName !== "...")` would silently treat
+  // "we have no evidence" as success, since it never fires when resultName
+  // is undefined.
+  if (resultName !== "FINISHED_WITH_RETURN") {
+    throw new Error(`Transaction did not succeed: ${resultName ?? "no execution result (receipt unavailable)"}`);
   }
 
   return { hash, txExecutionResultName: resultName };
