@@ -37,7 +37,7 @@ Full API in [docs/architecture.md](docs/architecture.md). Writes: `create_fixtur
 
 ## Tests
 
-94 tests: 45 pure-Python (`whistle_lib`, no `genlayer` import -- the comparator, fee/payout math, envelope self-consistency) + 49 `gltest` direct-mode (real GenVM sandbox deploy + full state-machine execution). `genvm-lint check`/`typecheck` both pass on the bundled artifact. See [docs/testing.md](docs/testing.md).
+97 tests: 45 pure-Python (`whistle_lib`, no `genlayer` import -- the comparator, fee/payout math, envelope self-consistency) + 48 `gltest` direct-mode (real GenVM sandbox deploy + full state-machine execution) + 1 `test_smoke` + 3 `test_events` (static AST event declaration guards). `genvm-lint check`/`typecheck` both pass on the bundled artifact. See [docs/testing.md](docs/testing.md).
 
 ## Network
 

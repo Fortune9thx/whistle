@@ -2,7 +2,7 @@
 
 | Surface | State |
 |---|---|
-| Contract tests | 94/94 passing (45 pure-Python `whistle_lib` + 49 `gltest` direct-mode) |
+| Contract tests | 97/97 passing (45 pure-Python `whistle_lib` + 48 `gltest` direct-mode + 1 `test_smoke` + 3 `test_events`) |
 | `genvm-lint check` | passing, 3 checks |
 | `genvm-lint typecheck` | 0 errors, 0 warnings |
 | Bundle size | 49,813 / 52,224 bytes (95.4%) |
@@ -73,11 +73,9 @@ mainnet.
 `bradbury-deploy` account already active on this machine). See
 `deploy/deployments.json` for the full record including the exact
 deployed bundle's sha256.
-
-**Not done, and why**: no `create_fixture` call has been made against the
-live contract. It is a payable write, and `genlayer write` cannot attach
-GEN to a call at all (a confirmed CLI surface gap, not a protocol
-limitation) -- exercising it requires either the in-app wallet flow or a
-`genlayer-js` script signing with a decrypted private key, and no
-keystore password was available to this session to do the latter safely.
-Left to the in-app wallet flow, as the original build plan anticipated.
+## Payable live status
+- **Status**: Unproven live on CURRENT address `0xB7c5Ec5dc5d7A006Ef5dDE28E316E6A0586D4D36`.
+- **Details**: `create_fixture` and `place_bet` have never been executed on the live CURRENT address.
+- **Reason**: `genlayer write` CLI cannot attach value (GEN) to a call (no `--value` flag exists), and no decrypted deployer private key was provided in the session environment (`key_present=no`).
+- **Transfer path**: Tested thoroughly in direct-mode simulation (`gltest` direct mode with 48 passing contract tests covering escrow, slash, fee split, dust preservation, and claim payout), but unexercised on-chain.
+- **Intended execution path**: The live frontend app wallet flow at https://whistle-brown-ten.vercel.app with a funded browser wallet (MetaMask / EIP-1193 provider).

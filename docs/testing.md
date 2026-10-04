@@ -39,6 +39,9 @@ gets deployed. Re-run `build_bundle.py` any time `Whistle.py` or
   payout, pagination, and one full appeal -> re_adjudicate ->
   reclaim_bonds cycle proving the prior resolver's bond isn't stranded.
 - `tests/direct/test_smoke.py` (1 test) -- deploy + config sanity check.
+- `tests/direct/test_events.py` (3 tests) -- AST static regression guards
+  verifying all `gl.chain.Event` subclasses have at most 3 positional fields
+  and that positional parameters are strictly alphabetical.
 
 ## What direct-mode cannot exercise, and how that gap is covered
 
